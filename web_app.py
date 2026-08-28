@@ -154,6 +154,12 @@ class ApiPollPayload(BaseModel):
     reset: bool = False
 
 
+class ApiIngestPayload(BaseModel):
+    data: dict = Field(default_factory=dict)
+    sourceKey: str = "browser-local"
+    reset: bool = False
+
+
 class ApiSavePayload(BaseModel):
     matchNumber: int = Field(ge=1, le=99)
     map: str = "Erangel"
@@ -734,6 +740,45 @@ def api_state(email: str) -> dict:
     return state
 
 
+def reset_api_state(state: dict, source_key: str) -> None:
+    state["tracker"] = MatchTracker()
+    state["mock"] = MockDataGenerator()
+    state["lastResults"] = []
+    state["lastStatus"] = "Ready"
+    state["lastError"] = ""
+    state["sourceKey"] = source_key
+
+
+def observer_results_from_snapshot(state: dict, email: str, snap, status: str) -> dict:
+    team_states = snap.team_states()
+    if not team_states:
+        state["lastResults"] = []
+        state["lastStatus"] = "No team data received"
+        state["lastError"] = "Live feed returned no team/player list."
+        raise HTTPException(
+            status_code=422,
+            detail="Live feed connected, but no team/player data was found. Check that the match is running and the endpoint returns player data.",
+        )
+
+    tracker = state["tracker"]
+    tracker.update(team_states)
+    em = manager_for(email)
+    results = tracker.build_results(
+        em.event.get("pointSystem", DEFAULT_POINT_SYSTEM),
+        em.team_name_overrides(),
+    )
+    state["lastResults"] = results
+    state["lastStatus"] = status
+    state["lastError"] = ""
+    return {
+        "status": status,
+        "aliveTeams": tracker.alive_team_count,
+        "isMatchOver": tracker.is_match_over,
+        "seenAnyData": tracker.seen_any_data,
+        "results": results,
+    }
+
+
 @app.get("/api/health")
 def health_check():
     return {"ok": True, "service": "ec-pubgm-result-maker"}
@@ -1026,14 +1071,9 @@ def poll_api(payload: ApiPollPayload, email: Annotated[str, Depends(require_user
     if not payload.mockMode and not api_url:
         raise HTTPException(status_code=400, detail="Paste a live endpoint before polling.")
 
-    source_key = "mock" if payload.mockMode else f"live:{api_url}"
+    source_key = "demo" if payload.mockMode else f"server:{api_url}"
     if payload.reset or state.get("sourceKey") != source_key:
-        state["tracker"] = MatchTracker()
-        state["mock"] = MockDataGenerator()
-        state["lastResults"] = []
-        state["lastStatus"] = "Ready"
-        state["lastError"] = ""
-        state["sourceKey"] = source_key
+        reset_api_state(state, source_key)
 
     try:
         if payload.mockMode:
@@ -1050,34 +1090,26 @@ def poll_api(payload: ApiPollPayload, email: Annotated[str, Depends(require_user
         state["lastStatus"] = "Connection failed"
         raise HTTPException(status_code=502, detail=f"Live feed fetch failed: {exc}") from exc
 
-    team_states = snap.team_states()
-    if not team_states:
+    return observer_results_from_snapshot(state, email, snap, status)
+
+
+@app.post("/api/observer/ingest")
+def ingest_api(payload: ApiIngestPayload, email: Annotated[str, Depends(require_user)]):
+    state = api_state(email)
+    source_hint = re.sub(r"\s+", "", payload.sourceKey.strip())[:240] or "browser-local"
+    source_key = f"browser:{source_hint}"
+    if payload.reset or state.get("sourceKey") != source_key:
+        reset_api_state(state, source_key)
+
+    try:
+        snap = parse_snapshot(payload.data)
+    except Exception as exc:
         state["lastResults"] = []
-        state["lastStatus"] = "No team data received"
-        state["lastError"] = "Live feed returned no team/player list."
-        raise HTTPException(
-            status_code=422,
-            detail="Live feed connected, but no team/player data was found. Check that the match is running and the endpoint returns the player list.",
-        )
+        state["lastError"] = str(exc)
+        state["lastStatus"] = "Live data could not be read"
+        raise HTTPException(status_code=422, detail=f"Live feed data could not be read: {exc}") from exc
 
-    tracker = state["tracker"]
-    tracker.update(team_states)
-    em = manager_for(email)
-    results = tracker.build_results(
-        em.event.get("pointSystem", DEFAULT_POINT_SYSTEM),
-        em.team_name_overrides(),
-    )
-    state["lastResults"] = results
-    state["lastStatus"] = status
-    state["lastError"] = ""
-    return {
-        "status": status,
-        "aliveTeams": tracker.alive_team_count,
-        "isMatchOver": tracker.is_match_over,
-        "seenAnyData": tracker.seen_any_data,
-        "results": results,
-    }
-
+    return observer_results_from_snapshot(state, email, snap, "Browser live feed connected")
 
 @app.post("/api/observer/save")
 def save_api_match(payload: ApiSavePayload, email: Annotated[str, Depends(require_user)]):
@@ -1306,4 +1338,5 @@ def spa_fallback(_: str, request: Request):
     if request.url.path.startswith("/api/"):
         raise HTTPException(status_code=404, detail="Not found.")
     return spa_shell()
+
 

@@ -185,3 +185,19 @@ Never upload secrets publicly:
 - `data/web_users.json`
 - `data/web_allowlist.json`
 - `data/web_secret.key`
+
+## Live API from the game PC
+
+For website Live API, use **This browser** mode when the observer feed is on your gaming PC:
+
+```text
+http://127.0.0.1:10086/gettotalplayerlist
+```
+
+That makes Chrome read the local feed from the game PC and sends the JSON to Hostinger for scoring every second. If Chrome blocks the direct local read, run `run_live_bridge.bat` on the game PC and use:
+
+```text
+http://127.0.0.1:8765/gettotalplayerlist
+```
+
+For Discord `/autostart`, or for server-side polling from Hostinger, the observer API must still be reachable by the VPS through a public URL, VPN, or tunnel.

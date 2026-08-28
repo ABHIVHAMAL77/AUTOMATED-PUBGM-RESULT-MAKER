@@ -107,6 +107,15 @@ export const api = {
       results: ApiResultRow[];
     }>("/api/observer/poll", { apiUrl, mockMode, reset }),
 
+  ingestObserverSnapshot: (data: unknown, sourceKey: string, reset = false) =>
+    post<{
+      status: string;
+      aliveTeams: number;
+      isMatchOver: boolean;
+      seenAnyData: boolean;
+      results: ApiResultRow[];
+    }>("/api/observer/ingest", { data, sourceKey, reset }),
+
   saveObserverMatch: (matchNumber: number, map: string) =>
     post<Dashboard>("/api/observer/save", { matchNumber, map }),
 
@@ -179,4 +188,5 @@ export async function downloadExport(kind: "sheet" | "overall-png" | "match-png"
   link.remove();
   URL.revokeObjectURL(url);
 }
+
 
