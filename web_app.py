@@ -1256,6 +1256,26 @@ def spa_shell():
     return FileResponse(shell)
 
 
+
+@app.get("/{asset_name}")
+def web_root_asset(asset_name: str):
+    """Serve root-level Vite assets such as /ec-logo.png.
+
+    Vite copies files from web/public into web/dist root. The SPA fallback must
+    still handle app routes, but real files at the build root should be served
+    as files so browser icons and brand assets load correctly.
+    """
+    if "/" in asset_name or "\\" in asset_name:
+        raise HTTPException(status_code=404, detail="Not found.")
+    path = (WEB_DIST / asset_name).resolve()
+    try:
+        path.relative_to(WEB_DIST.resolve())
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found.") from None
+    if path.is_file() and path.name != "index.html":
+        return FileResponse(path)
+    return spa_shell()
+
 @app.get("/{_:path}")
 def spa_fallback(_: str, request: Request):
     """Every non-API path returns the SPA shell so client-side routes work on
