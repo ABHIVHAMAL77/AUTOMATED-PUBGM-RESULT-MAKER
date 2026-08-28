@@ -105,9 +105,9 @@ export function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
 /**
  * Says which OCR engine is running.
  *
- * Offline is the normal, free, default state, so it is presented as a feature
- * rather than as a missing-API-key warning — nagging about a paid mode nobody
- * asked for makes a working app look broken.
+ * In the hosted website, screenshots are uploaded to the server and processed
+ * there. The default engine is self-hosted RapidOCR, so buyers see online OCR
+ * without needing a separate paid OCR account.
  */
 function EngineBadge({ me }: { me: Me }) {
   const engine = me.ocrEngine;
@@ -118,13 +118,13 @@ function EngineBadge({ me }: { me: Me }) {
     <Tooltip
       label={
         usingVision
-          ? `Low-confidence cards are re-read with ${engine.visionModel}. This is the optional paid mode; unset OCR_ENGINE to go back to free offline reading.`
-          : "Screenshots are read on this machine with RapidOCR — free, no account, no internet, and nothing ever leaves your computer."
+          ? `Low-confidence cards are re-read with ${engine.visionModel}. External review mode is enabled for better recognition.`
+          : "Screenshots are processed on the hosted ESPORTS COUNTY server with RapidOCR. No separate OCR account is needed."
       }
     >
       <span className="hidden sm:block">
         <Badge tone={usingVision ? "bronze" : "ok"}>
-          {usingVision ? `OCR: ${engine.effective}` : "Offline OCR"}
+          {usingVision ? `OCR: ${engine.effective}` : "Online OCR"}
         </Badge>
       </span>
     </Tooltip>
@@ -152,4 +152,5 @@ function ThemeToggle() {
     </Button>
   );
 }
+
 

@@ -1,6 +1,6 @@
 # ESPORTS COUNTY PUBGM Result Maker
 
-A production-style tournament result system for PUBG Mobile esports. It combines a web dashboard, offline screenshot OCR, live match ingestion, standings calculation, exportable graphics, Excel/CSV outputs, buyer email access control, and Discord bot commands for teams, players, managers, and coaches.
+A production-style tournament result system for PUBG Mobile esports. It combines a web dashboard, online screenshot OCR, live match ingestion, standings calculation, exportable graphics, Excel/CSV outputs, buyer email access control, and Discord bot commands for teams, players, managers, and coaches.
 
 This project was built for ESPORTS COUNTY to make match result work faster, cleaner, and easier to sell as a hosted tool.
 
@@ -18,7 +18,7 @@ This project was built for ESPORTS COUNTY to make match result work faster, clea
 
 - Python, FastAPI, Uvicorn
 - React, TypeScript, Vite, Tailwind CSS
-- RapidOCR / ONNX Runtime for offline screenshot OCR
+- RapidOCR / ONNX Runtime for online screenshot OCR
 - Pillow and OpenPyXL for generated graphics and spreadsheet exports
 - discord.py for the Discord bot
 - Docker Compose for VPS deployment
@@ -93,11 +93,9 @@ python scripts/ocr_bench.py --save-baseline
 your own labelled screenshots to the fixtures folder to measure the pipeline
 against your events specifically.
 
-### The OCR is free and offline
+### The OCR is online for buyers and self-hosted
 
-There is no account, no API key, no subscription and no internet requirement.
-Screenshots are read on your machine by RapidOCR and never leave it. This is
-the default and the only mode your buyers ever need to think about.
+On the hosted website, buyers upload screenshots and OCR runs on your VPS. There is no separate OCR account, API key, or subscription required for the default mode. Screenshots stay inside your own ESPORTS COUNTY server instead of being sent to a third-party OCR provider.
 
 <details>
 <summary>Optional paid mode (you almost certainly do not want this)</summary>
@@ -112,8 +110,7 @@ set ANTHROPIC_API_KEY=sk-ant-...
 set OCR_ENGINE=hybrid          local | hybrid | vision   (default: local)
 ```
 
-Everything degrades back to the free local engine if the key is missing or the
-API is unreachable, so turning it on can never break an event.
+Everything degrades back to the self-hosted OCR engine if the key is missing or the external service is unreachable, so turning it on can never break an event.
 
 </details>
 
@@ -235,5 +232,6 @@ elims → best single-match placement.
 
 MVP rating = a player's share of total lobby contribution, where
 contribution = elims×2 + knockouts + assists×0.75 + damage÷100 + rescues×0.5.
+
 
 
