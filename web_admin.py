@@ -8,9 +8,10 @@ Examples:
 
 import argparse
 import json
+import os
 from pathlib import Path
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
+DATA_DIR = Path(os.environ.get("EC_DATA_DIR", Path(__file__).resolve().parent / "data"))
 ALLOWLIST_FILE = DATA_DIR / "web_allowlist.json"
 
 
@@ -77,3 +78,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
