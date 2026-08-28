@@ -1,0 +1,13 @@
+services:
+  result-maker:
+    build: .
+    env_file:
+      - .env.hostinger
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - ec_pubgm_data:/data
+    restart: unless-stopped
+
+volumes:
+  ec_pubgm_data:

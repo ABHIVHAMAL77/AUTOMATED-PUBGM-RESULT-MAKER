@@ -1,0 +1,50 @@
+{
+  "note": "Left panel #1/#2 + right column ranks 9-11. Rank 12 is cut off at the bottom edge and is not scored. Rank 9 contains a Devanagari IGN that the Latin OCR model cannot read.",
+  "partial_ranks": [12],
+  "cards": [
+    {
+      "rank": 1,
+      "players": [
+        {"name": "Hiixlie", "kills": 3},
+        {"name": "Hiixloki", "kills": 1},
+        {"name": "HiixDÀDÀ", "kills": 0},
+        {"name": "HiixGianT", "kills": 5}
+      ]
+    },
+    {
+      "rank": 2,
+      "players": [
+        {"name": "4M | kazukiiì", "kills": 1},
+        {"name": "4DT⌇CʀG→YT", "kills": 0},
+        {"name": "4M | DAWA Sir", "kills": 1},
+        {"name": "4DTxMIHAWK", "kills": 2}
+      ]
+    },
+    {
+      "rank": 9,
+      "players": [
+        {"name": "JHOLAaGANG", "kills": 3},
+        {"name": "HEX² | 19Crime", "kills": 1},
+        {"name": "justBeatless", "kills": 0},
+        {"name": "चिनी बा", "kills": 2}
+      ]
+    },
+    {
+      "rank": 10,
+      "players": [
+        {"name": "TRGxNewPlayer", "kills": 1},
+        {"name": "TRGxSABRIN", "kills": 0},
+        {"name": "TRGxToxicBoiii", "kills": 0}
+      ]
+    },
+    {
+      "rank": 11,
+      "players": [
+        {"name": "⌐PARADISE⌐", "kills": 0},
+        {"name": "EGxBona", "kills": 0},
+        {"name": "EGxkalauteee", "kills": 0},
+        {"name": "EGjoggi", "kills": 0}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "local": {
+    "results": {
+      "cards_found": 97.1,
+      "cards_hallucinated": 1,
+      "rank": 97.1,
+      "name_exact": 48.9,
+      "name_close": 94.7,
+      "kills": 96.2,
+      "roster_slot": 100.0
+    },
+    "roster": {
+      "cards_found": 100.0,
+      "cards_hallucinated": 0,
+      "rank": 91.7,
+      "name_exact": 67.8,
+      "name_close": 94.4,
+      "kills": 100.0,
+      "roster_slot": 91.7
+    }
+  }
+}

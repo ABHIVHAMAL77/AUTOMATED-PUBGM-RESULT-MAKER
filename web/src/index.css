@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root,
+  :root[data-theme="dark"] {
+    --bg: 20 20% 3%;
+    --panel: 24 8% 7%;
+    --raised: 24 8% 10%;
+    --line: 22 20% 17%;
+    --bronze: 28 50% 48%;
+    --bronze-bright: 34 68% 64%;
+    --sand: 27 55% 94%;
+    --muted: 26 18% 62%;
+    --ink: 24 20% 4%;
+    --danger: 0 100% 74%;
+    --warn: 38 92% 62%;
+    --ok: 168 35% 57%;
+    color-scheme: dark;
+  }
+
+  :root[data-theme="light"] {
+    --bg: 30 30% 96%;
+    --panel: 0 0% 100%;
+    --raised: 30 25% 97%;
+    --line: 28 18% 84%;
+    --bronze: 26 55% 40%;
+    --bronze-bright: 26 60% 34%;
+    --sand: 24 25% 16%;
+    --muted: 26 10% 40%;
+    --ink: 30 30% 98%;
+    --danger: 0 62% 45%;
+    --warn: 32 80% 38%;
+    --ok: 168 45% 30%;
+    color-scheme: light;
+  }
+
+  * {
+    @apply border-line;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg text-sand antialiased;
+    font-feature-settings: "cv02", "cv03";
+    /* wide content scrolls inside its own container; the page never does */
+    overflow-x: hidden;
+  }
+
+  /* Visible focus everywhere — the old app had none, which made the review
+     table impossible to fill in from the keyboard. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-bronze-bright ring-offset-2 ring-offset-bg;
+  }
+
+  ::selection {
+    @apply bg-bronze/40;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-panel border border-line bg-panel;
+  }
+
+  .field {
+    @apply w-full rounded-lg border border-line bg-raised px-3 py-2 text-sm text-sand
+           placeholder:text-muted/60 transition
+           focus:border-bronze focus:outline-none disabled:opacity-50;
+  }
+
+  .label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted;
+  }
+
+  /* Data grids scroll inside themselves so the page body never scrolls
+     sideways on a phone. */
+  .table-scroll {
+    @apply overflow-x-auto rounded-panel border border-line;
+  }
+
+  .data-table {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .data-table thead th {
+    @apply sticky top-0 z-10 whitespace-nowrap border-b border-line bg-raised px-3 py-2.5
+           text-left text-xs font-semibold uppercase tracking-wider text-bronze-bright;
+  }
+
+  .data-table tbody td {
+    @apply border-b border-line/60 px-3 py-2 align-middle;
+  }
+
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .data-table tbody tr:hover {
+    @apply bg-raised/50;
+  }
+}

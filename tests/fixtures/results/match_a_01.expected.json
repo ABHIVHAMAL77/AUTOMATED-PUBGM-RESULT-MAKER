@@ -1,0 +1,49 @@
+{
+  "note": "Left panel #1/#2 + right column ranks 17-19. Rank 16 is cut off at the top edge and is not scored.",
+  "partial_ranks": [16],
+  "cards": [
+    {
+      "rank": 1,
+      "players": [
+        {"name": "Hiixlie", "kills": 3},
+        {"name": "Hiixloki", "kills": 1},
+        {"name": "HiixDÀDÀ", "kills": 0},
+        {"name": "HiixGianT", "kills": 5}
+      ]
+    },
+    {
+      "rank": 2,
+      "players": [
+        {"name": "4M | kazukiiì", "kills": 1},
+        {"name": "4DT⌇CʀG→YT", "kills": 0},
+        {"name": "4M | DAWA Sir", "kills": 1},
+        {"name": "4DTxMIHAWK", "kills": 2}
+      ]
+    },
+    {
+      "rank": 17,
+      "players": [
+        {"name": "STxCHEESeBALL", "kills": 2},
+        {"name": "GHOSTeey", "kills": 0},
+        {"name": "STxHUNTER · 77z", "kills": 0},
+        {"name": "STxkurkureyAc", "kills": 1}
+      ]
+    },
+    {
+      "rank": 18,
+      "players": [
+        {"name": "SUPRIMMM911★", "kills": 0},
+        {"name": "WhoisArowana", "kills": 0},
+        {"name": "STEPxMAMA", "kills": 0}
+      ]
+    },
+    {
+      "rank": 19,
+      "players": [
+        {"name": "NFxPÄIŃ", "kills": 0},
+        {"name": "NFxFlodyy", "kills": 0},
+        {"name": "NFxASTRO", "kills": 0}
+      ]
+    }
+  ]
+}

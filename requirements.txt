@@ -1,0 +1,17 @@
+PySide6>=6.6
+Pillow>=10.0
+requests>=2.31
+openpyxl>=3.1
+rapidocr_onnxruntime>=1.3
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-multipart>=0.0.20
+discord.py>=2.4
+
+# Everything above installs the website, OCR engine, desktop app, and optional Discord bot.
+# Manual OCR still reads screenshots offline, with no account, no API key and no internet.
+#
+# There is an optional paid mode that re-reads hard screenshots (non-Latin team
+# names) with Claude. It is off by default and nothing prompts for it. Only if
+# you want it:  pip install anthropic  +  set ANTHROPIC_API_KEY and OCR_ENGINE=hybrid
+

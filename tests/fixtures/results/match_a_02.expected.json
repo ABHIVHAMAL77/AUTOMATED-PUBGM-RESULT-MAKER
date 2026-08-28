@@ -1,0 +1,51 @@
+{
+  "note": "Left panel #1/#2 + right column ranks 15-17. Rank 18 is cut off at the bottom edge and is not scored.",
+  "partial_ranks": [18],
+  "cards": [
+    {
+      "rank": 1,
+      "players": [
+        {"name": "Hiixlie", "kills": 3},
+        {"name": "Hiixloki", "kills": 1},
+        {"name": "HiixDÀDÀ", "kills": 0},
+        {"name": "HiixGianT", "kills": 5}
+      ]
+    },
+    {
+      "rank": 2,
+      "players": [
+        {"name": "4M | kazukiiì", "kills": 1},
+        {"name": "4DT⌇CʀG→YT", "kills": 0},
+        {"name": "4M | DAWA Sir", "kills": 1},
+        {"name": "4DTxMIHAWK", "kills": 2}
+      ]
+    },
+    {
+      "rank": 15,
+      "players": [
+        {"name": "ZYLO · Yabli", "kills": 1},
+        {"name": "ZYLO · Gurung", "kills": 0},
+        {"name": "DOTS · Gurung", "kills": 0},
+        {"name": "ZYLO · DImDoong", "kills": 4}
+      ]
+    },
+    {
+      "rank": 16,
+      "players": [
+        {"name": "ISAGI | ExT夂", "kills": 0},
+        {"name": "EnZo47 | ExT夂", "kills": 1},
+        {"name": "SULLY | ExT夂", "kills": 0},
+        {"name": "BRUCE | ExT夂", "kills": 0}
+      ]
+    },
+    {
+      "rank": 17,
+      "players": [
+        {"name": "STxCHEESeBALL", "kills": 2},
+        {"name": "GHOSTeey", "kills": 0},
+        {"name": "STxHUNTER · 77z", "kills": 0},
+        {"name": "STxkurkureyAc", "kills": 1}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "note": "Observe-lobby slot grid, slots 18-23. Slot 24 is clipped at the bottom edge and is not scored.",
+  "partial_slots": [24],
+  "cards": [
+    {"slot": 18, "players": ["TRGxToxicBoiii", "TRGxNewPlayer", "TRGxSABRIN"]},
+    {"slot": 19, "players": ["4M | kazukiiì", "4DTxMIHAWK", "4M | DAWA Sir", "4DT⌇CʀG→YT"]},
+    {"slot": 20, "players": ["PS》VeNoM", "PS》RJS", "PS》MD★", "PS》FireBoYY"]},
+    {"slot": 21, "players": ["SULLY | ExT夂", "EnZo47 | ExT夂", "BRUCE | ExT夂", "ISAGI | ExT夂"]},
+    {"slot": 22, "players": ["BaDboYfromAE", "MahoSohanDada", "NischalfromAE", "BabaguluufromA"]},
+    {"slot": 23, "players": ["Ucan | KYUUBi", "『GRG』Razu", "ხRM◉DESTINY", "Yarsagumba"]}
+  ]
+}

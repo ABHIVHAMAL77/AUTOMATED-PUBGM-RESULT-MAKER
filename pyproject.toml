@@ -1,0 +1,23 @@
+[tool.pytest.ini_options]
+# tests live at the repo root and in tests/, and both import `core.*`
+pythonpath = ["."]
+testpaths = ["tests", "."]
+python_files = ["test_*.py"]
+filterwarnings = ["ignore::DeprecationWarning"]
+markers = ["slow: runs the OCR engine over the fixture screenshots"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = ["__pycache__", "web/dist", "web/node_modules", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",   # long lines are checked by line-length, not flagged twice
+    "B008",   # FastAPI Depends() in defaults is the framework idiom
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]
+"scripts/*" = ["E402"]

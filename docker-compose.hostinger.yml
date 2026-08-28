@@ -1,0 +1,30 @@
+services:
+  result-maker:
+    build: .
+    env_file:
+      - .env.hostinger
+    expose:
+      - "8080"
+    volumes:
+      - ec_pubgm_data:/data
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    env_file:
+      - .env.hostinger
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./hostinger/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - result-maker
+    restart: unless-stopped
+
+volumes:
+  ec_pubgm_data:
+  caddy_data:
+  caddy_config:

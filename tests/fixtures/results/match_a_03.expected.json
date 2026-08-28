@@ -1,0 +1,51 @@
+{
+  "note": "Left panel #1/#2 + right column ranks 12-14.",
+  "partial_ranks": [],
+  "cards": [
+    {
+      "rank": 1,
+      "players": [
+        {"name": "Hiixlie", "kills": 3},
+        {"name": "Hiixloki", "kills": 1},
+        {"name": "HiixDÀDÀ", "kills": 0},
+        {"name": "HiixGianT", "kills": 5}
+      ]
+    },
+    {
+      "rank": 2,
+      "players": [
+        {"name": "4M | kazukiiì", "kills": 1},
+        {"name": "4DT⌇CʀG→YT", "kills": 0},
+        {"name": "4M | DAWA Sir", "kills": 1},
+        {"name": "4DTxMIHAWK", "kills": 2}
+      ]
+    },
+    {
+      "rank": 12,
+      "players": [
+        {"name": "PS》RJS", "kills": 1},
+        {"name": "PS》FireBoYY", "kills": 0},
+        {"name": "PS》MD★", "kills": 0},
+        {"name": "PS》VeNoM", "kills": 1}
+      ]
+    },
+    {
+      "rank": 13,
+      "players": [
+        {"name": "ZN4 · Brolyy", "kills": 1},
+        {"name": "ZN4 · ZEUS", "kills": 2},
+        {"name": "ZN4 · Kaalki", "kills": 5},
+        {"name": "ZN4 · Roop", "kills": 2}
+      ]
+    },
+    {
+      "rank": 14,
+      "players": [
+        {"name": "NischalfromAE", "kills": 0},
+        {"name": "MahoSohanDada", "kills": 0},
+        {"name": "BabaguluufromA", "kills": 0},
+        {"name": "BaDboYfromAE", "kills": 1}
+      ]
+    }
+  ]
+}

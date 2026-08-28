@@ -1,0 +1,17 @@
+.git
+.agents
+.codex
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.venv
+venv
+.env
+.env.*
+!/.env.cloud.example
+data
+web/node_modules
+web/dist
+web/.vite
+web/tsconfig.tsbuildinfo

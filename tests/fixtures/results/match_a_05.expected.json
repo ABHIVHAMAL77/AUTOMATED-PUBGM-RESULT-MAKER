@@ -1,0 +1,50 @@
+{
+  "note": "Left panel #1/#2 + right column ranks 6-8. Rank 9 is cut off at the bottom edge and is not scored.",
+  "partial_ranks": [9],
+  "cards": [
+    {
+      "rank": 1,
+      "players": [
+        {"name": "Hiixlie", "kills": 3},
+        {"name": "Hiixloki", "kills": 1},
+        {"name": "HiixDÀDÀ", "kills": 0},
+        {"name": "HiixGianT", "kills": 5}
+      ]
+    },
+    {
+      "rank": 2,
+      "players": [
+        {"name": "4M | kazukiiì", "kills": 1},
+        {"name": "4DT⌇CʀG→YT", "kills": 0},
+        {"name": "4M | DAWA Sir", "kills": 1},
+        {"name": "4DTxMIHAWK", "kills": 2}
+      ]
+    },
+    {
+      "rank": 6,
+      "players": [
+        {"name": "SnitchMagar", "kills": 0},
+        {"name": "Āimléss", "kills": 4},
+        {"name": "ZeroYT ↘ GUP", "kills": 2}
+      ]
+    },
+    {
+      "rank": 7,
+      "players": [
+        {"name": "ZORO", "kills": 0},
+        {"name": "shrijan¹", "kills": 0},
+        {"name": "_xmoody", "kills": 0},
+        {"name": "AshishHoraaa", "kills": 0}
+      ]
+    },
+    {
+      "rank": 8,
+      "players": [
+        {"name": "RUxDNL", "kills": 3},
+        {"name": "RUxLEO", "kills": 1},
+        {"name": "RUxDO7", "kills": 1},
+        {"name": "RUxViPER", "kills": 1}
+      ]
+    }
+  ]
+}

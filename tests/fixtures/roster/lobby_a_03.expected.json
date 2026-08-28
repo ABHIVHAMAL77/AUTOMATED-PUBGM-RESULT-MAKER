@@ -1,0 +1,15 @@
+{
+  "note": "Observe-lobby slot grid, slots 5-13. Slot 13 is dimmed behind the stats overlay but fully legible.",
+  "partial_slots": [],
+  "cards": [
+    {"slot": 5, "players": ["DOTS · Gurung", "ZYLO · DImDoong", "ZYLO · Gurung", "ZYLO · Yabli"]},
+    {"slot": 6, "players": ["ZN4 · ZEUS", "ZN4 · Kaalki", "ZN4 · Roop", "ZN4 · Brolyy"]},
+    {"slot": 7, "players": ["RUxDNL", "RUxLEO", "RUxDO7", "RUxViPER"]},
+    {"slot": 8, "players": ["ZeroYT ↘ GUP", "SnitchMagar", "Āimléss"]},
+    {"slot": 9, "players": ["CNxROHIT", "CNxGoRkHeY", "JGlilLuffy97", "CNxSpartA"]},
+    {"slot": 10, "players": ["HEX² | 19Crime", "justBeatless", "चिनी बा", "JHOLAaGANG"]},
+    {"slot": 11, "players": ["DaddyLovesU28", "AJLovesU", "PrasannaLovesU"]},
+    {"slot": 12, "players": ["AshishHoraaa", "ZORO", "shrijan¹", "_xmoody"]},
+    {"slot": 13, "players": ["WhoisArowana", "STEPxMAMA", "SUPRIMMM911★"]}
+  ]
+}

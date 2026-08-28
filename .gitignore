@@ -1,0 +1,40 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# runtime data: uploads, per-user events, generated exports
+data/web_uploads/
+data/web/
+data/exports/
+data/results/
+data/settings.json
+data/users.json
+
+# secrets - see README, these must never be committed
+data/web_secret.key
+data/web_users.json
+data/web_allowlist.json
+.env
+.env.discord
+.env.cloud
+.env.hostinger
+
+# web front-end build artefacts
+web/node_modules/
+web/dist/
+
+# Vite dev cache
+web/.vite/
+web/tsconfig.tsbuildinfo
+
+# local deploy packages and private runtime data
+data/
+*.zip
+
+
+# internal local notes
+AI_HANDOFF_BRIEF.md
+

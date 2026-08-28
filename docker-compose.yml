@@ -1,0 +1,13 @@
+services:
+  result-maker:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.cloud
+    volumes:
+      - ec_pubgm_data:/data
+    restart: unless-stopped
+
+volumes:
+  ec_pubgm_data:
