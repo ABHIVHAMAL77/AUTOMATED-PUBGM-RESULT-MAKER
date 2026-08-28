@@ -729,6 +729,7 @@ def api_state(email: str) -> dict:
         "lastResults": [],
         "lastStatus": "Ready",
         "lastError": "",
+        "sourceKey": "",
     })
     return state
 
@@ -1021,24 +1022,46 @@ def delete_match(match_number: int, email: Annotated[str, Depends(require_user)]
 @app.post("/api/observer/poll")
 def poll_api(payload: ApiPollPayload, email: Annotated[str, Depends(require_user)]):
     state = api_state(email)
-    if payload.reset:
+    api_url = payload.apiUrl.strip()
+    if not payload.mockMode and not api_url:
+        raise HTTPException(status_code=400, detail="Paste a live endpoint before polling.")
+
+    source_key = "mock" if payload.mockMode else f"live:{api_url}"
+    if payload.reset or state.get("sourceKey") != source_key:
         state["tracker"] = MatchTracker()
         state["mock"] = MockDataGenerator()
+        state["lastResults"] = []
+        state["lastStatus"] = "Ready"
+        state["lastError"] = ""
+        state["sourceKey"] = source_key
+
     try:
         if payload.mockMode:
             snap = state["mock"].fetch()
-            status = "Mock data"
+            status = "Demo sample data"
         else:
-            resp = requests.get(payload.apiUrl, timeout=5)
+            resp = requests.get(api_url, timeout=5)
             resp.raise_for_status()
             snap = parse_snapshot(resp.json())
-            status = "Live API connected"
+            status = "Live feed connected"
     except Exception as exc:
+        state["lastResults"] = []
         state["lastError"] = str(exc)
-        raise HTTPException(status_code=502, detail=f"API fetch failed: {exc}") from exc
+        state["lastStatus"] = "Connection failed"
+        raise HTTPException(status_code=502, detail=f"Live feed fetch failed: {exc}") from exc
+
+    team_states = snap.team_states()
+    if not team_states:
+        state["lastResults"] = []
+        state["lastStatus"] = "No team data received"
+        state["lastError"] = "Live feed returned no team/player list."
+        raise HTTPException(
+            status_code=422,
+            detail="Live feed connected, but no team/player data was found. Check that the match is running and the endpoint returns the player list.",
+        )
 
     tracker = state["tracker"]
-    tracker.update(snap.team_states())
+    tracker.update(team_states)
     em = manager_for(email)
     results = tracker.build_results(
         em.event.get("pointSystem", DEFAULT_POINT_SYSTEM),
@@ -1283,9 +1306,4 @@ def spa_fallback(_: str, request: Request):
     if request.url.path.startswith("/api/"):
         raise HTTPException(status_code=404, detail="Not found.")
     return spa_shell()
-
-
-
-
-
 

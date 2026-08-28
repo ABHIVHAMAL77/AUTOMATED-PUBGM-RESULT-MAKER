@@ -1,9 +1,8 @@
 """Data models for the PUBG Mobile observer API.
 
-The observer API at http://127.0.0.1:10086/gettotalplayerlist returns JSON
-with player and team lists. Field names vary between observer versions, so
-parsing is tolerant: both "TotalPlayerList" / "playerInfoList" and
-"TeamInfoList" / "teamInfoList" are handled, and every field is optional.
+The observer endpoint commonly runs at
+http://127.0.0.1:10086/gettotalplayerlist on the observer PC. Field names vary
+between observer versions, so parsing is intentionally tolerant.
 """
 
 from dataclasses import dataclass, field
@@ -111,62 +110,111 @@ class Snapshot:
 
 def _get(d: dict, *keys, default=None):
     for k in keys:
-        if k in d and d[k] is not None:
+        if isinstance(d, dict) and k in d and d[k] is not None:
             return d[k]
     return default
 
 
+def _payload(data: dict) -> dict:
+    if not isinstance(data, dict):
+        return {}
+    for key in ("data", "Data", "result", "Result", "payload", "Payload", "response", "Response"):
+        child = data.get(key)
+        if isinstance(child, dict):
+            return child
+    return data
+
+
+def _list(d: dict, *keys) -> list:
+    value = _get(d, *keys, default=[])
+    return value if isinstance(value, list) else []
+
+
+def _int(value, default: int = 0) -> int:
+    try:
+        return int(value or default)
+    except (TypeError, ValueError):
+        return default
+
+
+def _float(value, default: float = 0.0) -> float:
+    try:
+        return float(value or default)
+    except (TypeError, ValueError):
+        return default
+
+
+def _bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "dead"}
+    return False
+
+
 def parse_snapshot(data: dict) -> Snapshot:
     snap = Snapshot()
-    raw_players = _get(data, "TotalPlayerList", "playerInfoList", default=[]) or []
-    raw_teams = _get(data, "TeamInfoList", "teamInfoList", default=[]) or []
+    payload = _payload(data)
+    raw_players = _list(
+        payload,
+        "TotalPlayerList", "totalPlayerList",
+        "PlayerInfoList", "playerInfoList",
+        "PlayerList", "playerList",
+        "players", "Players",
+    )
+    raw_teams = _list(
+        payload,
+        "TeamInfoList", "teamInfoList",
+        "TeamList", "teamList",
+        "teams", "Teams",
+    )
 
     for rp in raw_players:
-        try:
-            snap.players.append(Player(
-                uId=str(_get(rp, "uId", "uid", default="")),
-                playerName=str(_get(rp, "playerName", "name", default="")),
-                teamId=int(_get(rp, "teamId", default=0) or 0),
-                teamName=str(_get(rp, "teamName", default="")),
-                health=float(_get(rp, "health", default=0) or 0),
-                liveState=int(_get(rp, "liveState", default=0) or 0),
-                killNum=int(_get(rp, "killNum", default=0) or 0),
-                damage=float(_get(rp, "damage", default=0) or 0),
-                knockouts=int(_get(rp, "knockouts", default=0) or 0),
-                rank=int(_get(rp, "rank", default=0) or 0),
-                survivalTime=float(_get(rp, "survivalTime", default=0) or 0),
-                bHasDied=bool(_get(rp, "bHasDied", default=False)),
-                headShotNum=int(_get(rp, "headShotNum", default=0) or 0),
-                assists=int(_get(rp, "assists", default=0) or 0),
-                heal=float(_get(rp, "heal", default=0) or 0),
-                rescueTimes=int(_get(rp, "rescueTimes", default=0) or 0),
-                inDamage=float(_get(rp, "inDamage", default=0) or 0),
-                maxKillDistance=float(_get(rp, "maxKillDistance", default=0) or 0),
-                killNumByGrenade=int(_get(rp, "killNumByGrenade", default=0) or 0),
-                killNumInVehicle=int(_get(rp, "killNumInVehicle", default=0) or 0),
-                gotAirDropNum=int(_get(rp, "gotAirDropNum", default=0) or 0),
-                driveDistance=float(_get(rp, "driveDistance", default=0) or 0),
-                marchDistance=float(_get(rp, "marchDistance", default=0) or 0),
-                outsideBlueCircleTime=float(_get(rp, "outsideBlueCircleTime", default=0) or 0),
-                useSmokeGrenadeNum=int(_get(rp, "useSmokeGrenadeNum", default=0) or 0),
-                useFragGrenadeNum=int(_get(rp, "useFragGrenadeNum", default=0) or 0),
-                useBurnGrenadeNum=int(_get(rp, "useBurnGrenadeNum", default=0) or 0),
-                useFlashGrenadeNum=int(_get(rp, "useFlashGrenadeNum", default=0) or 0),
-                raw=dict(rp),
-            ))
-        except (TypeError, ValueError):
+        if not isinstance(rp, dict):
             continue
+        snap.players.append(Player(
+            uId=str(_get(rp, "uId", "uid", "UID", "playerOpenId", "openId", default="")),
+            playerName=str(_get(rp, "playerName", "name", "userName", "nickName", "nickname", default="")),
+            teamId=_int(_get(rp, "teamId", "teamID", "team_id", "campId", "campID", default=0)),
+            teamName=str(_get(rp, "teamName", "team", "team_name", "campName", default="")),
+            health=_float(_get(rp, "health", "hp", default=0)),
+            liveState=_int(_get(rp, "liveState", "live_state", "state", default=0)),
+            killNum=_int(_get(rp, "killNum", "kills", "kill", "killCount", "eliminations", "elims", default=0)),
+            damage=_float(_get(rp, "damage", "damageDealt", "totalDamage", default=0)),
+            knockouts=_int(_get(rp, "knockouts", "knockout", "knockoutNum", "knockNum", default=0)),
+            rank=_int(_get(rp, "rank", "teamRank", "placement", "place", default=0)),
+            survivalTime=_float(_get(rp, "survivalTime", "surviveTime", "liveTime", default=0)),
+            bHasDied=_bool(_get(rp, "bHasDied", "hasDied", "isDead", "dead", default=False)),
+            headShotNum=_int(_get(rp, "headShotNum", "headshots", default=0)),
+            assists=_int(_get(rp, "assists", "assist", "assistNum", default=0)),
+            heal=_float(_get(rp, "heal", "heals", "healAmount", default=0)),
+            rescueTimes=_int(_get(rp, "rescueTimes", "rescues", "revives", default=0)),
+            inDamage=_float(_get(rp, "inDamage", "damageTaken", default=0)),
+            maxKillDistance=_float(_get(rp, "maxKillDistance", default=0)),
+            killNumByGrenade=_int(_get(rp, "killNumByGrenade", default=0)),
+            killNumInVehicle=_int(_get(rp, "killNumInVehicle", default=0)),
+            gotAirDropNum=_int(_get(rp, "gotAirDropNum", default=0)),
+            driveDistance=_float(_get(rp, "driveDistance", default=0)),
+            marchDistance=_float(_get(rp, "marchDistance", default=0)),
+            outsideBlueCircleTime=_float(_get(rp, "outsideBlueCircleTime", default=0)),
+            useSmokeGrenadeNum=_int(_get(rp, "useSmokeGrenadeNum", default=0)),
+            useFragGrenadeNum=_int(_get(rp, "useFragGrenadeNum", default=0)),
+            useBurnGrenadeNum=_int(_get(rp, "useBurnGrenadeNum", default=0)),
+            useFlashGrenadeNum=_int(_get(rp, "useFlashGrenadeNum", default=0)),
+            raw=dict(rp),
+        ))
 
     for rt in raw_teams:
-        try:
-            snap.teams.append(TeamInfo(
-                teamId=int(_get(rt, "teamId", default=0) or 0),
-                teamName=str(_get(rt, "teamName", default="")),
-                killNum=int(_get(rt, "killNum", default=0) or 0),
-                liveMemberNum=int(_get(rt, "liveMemberNum", default=0) or 0),
-                rank=int(_get(rt, "rank", default=0) or 0),
-            ))
-        except (TypeError, ValueError):
+        if not isinstance(rt, dict):
             continue
+        snap.teams.append(TeamInfo(
+            teamId=_int(_get(rt, "teamId", "teamID", "team_id", "campId", "campID", default=0)),
+            teamName=str(_get(rt, "teamName", "name", "team", "team_name", "campName", default="")),
+            killNum=_int(_get(rt, "killNum", "kills", "kill", "killCount", "eliminations", "elims", default=0)),
+            liveMemberNum=_int(_get(rt, "liveMemberNum", "aliveNum", "aliveCount", "liveMembers", default=0)),
+            rank=_int(_get(rt, "rank", "teamRank", "placement", "place", default=0)),
+        ))
 
     return snap
