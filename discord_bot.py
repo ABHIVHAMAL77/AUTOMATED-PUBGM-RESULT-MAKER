@@ -374,6 +374,49 @@ def player_details_csv_path(em: EventManager | None) -> Path | None:
     path = em.exports_dir / "csv" / "player_stats.csv"
     return path if path.exists() else None
 
+
+def match_result_filename(match_number: int | None) -> str:
+    number = safe_int(match_number, 0, 0, 99)
+    return f"match_{number:02d}_results.png" if number else "match_results.png"
+
+
+def match_result_caption(em: EventManager | None, match_number: int | None) -> str:
+    if em is None or match_number is None:
+        return "**Match Results**"
+
+    match = em.load_match(match_number) or {}
+    event_name = em.event.get("eventName") or "PUBGM Event"
+    title = f"**{event_name}**\nMatch {match_number} Results"
+    if match.get("map"):
+        title += f" - {match['map']}"
+
+    winner = (match.get("results") or [{}])[0]
+    if winner.get("teamName"):
+        title += (
+            f"\nWinner: **{winner.get('teamName')}**"
+            f" | Elims: `{winner.get('kills', 0)}`"
+            f" | Total: `{winner.get('totalPoints', 0)}`"
+        )
+    return title
+
+
+def overall_standings_caption(em: EventManager | None) -> str:
+    if em is None:
+        return "**Overall Standings**"
+
+    event_name = em.event.get("eventName") or "PUBGM Event"
+    matches_played = len(em.list_match_numbers())
+    title = f"**{event_name}**\nOverall Standings - After {matches_played} match{'es' if matches_played != 1 else ''}"
+    leader = (em.overall_standings() or [{}])[0]
+    if leader.get("teamName"):
+        title += (
+            f"\nLeader: **{leader.get('teamName')}**"
+            f" | WWCD: `{leader.get('wwcd', 0)}`"
+            f" | Total: `{leader.get('totalPoints', 0)}`"
+        )
+    return title
+
+
 def format_matches(em: EventManager | None, limit: int = 10) -> str:
     if em is None:
         return PUBLIC_MATCHES_NOT_READY
@@ -597,19 +640,31 @@ class AutoPollRunner:
 
     async def _save_current_match(self, channel: Any | None) -> None:
         assert self.config is not None
+        saved_match = self.config.match_number
         em = manager_for(self.config.email)
-        em.save_match_result(self.config.match_number, self.config.map_name, self.last_results)
+        em.save_match_result(saved_match, self.config.map_name, self.last_results)
         save_exports(em)
-        self.last_saved_match = self.config.match_number
-        self.last_status = f"Saved match {self.config.match_number}."
-        message = f"Saved match {self.config.match_number} from live result feed.\n"
-        message += format_results(em, self.config.match_number, limit=8)
+        self.last_saved_match = saved_match
+        self.last_status = f"Saved match {saved_match}."
+        message = f"Saved match {saved_match} from live result feed.\n"
+        message += format_results(em, saved_match, limit=8)
         self.config.match_number = em.next_match_number()
 
         if channel is not None:
+            path = match_image_path(em, saved_match)
+            if path is not None and path.exists():
+                try:
+                    import discord
+
+                    await channel.send(
+                        content=match_result_caption(em, saved_match),
+                        file=discord.File(str(path), filename=match_result_filename(saved_match)),
+                    )
+                    return
+                except Exception as exc:  # noqa: BLE001 - fall back to text if Discord rejects the file
+                    self.last_error = str(exc)
             for chunk in chunk_message(message):
                 await channel.send(chunk)
-
 
 def fetch_json(url: str) -> dict:
     response = requests.get(url, timeout=5)
@@ -671,6 +726,58 @@ def create_bot():
             return
         await interaction.response.send_message(content=content, file=discord.File(str(path)))
 
+    async def send_match_result_sheet(
+        destination: Any,
+        current: EventManager | None,
+        match: int | None = None,
+    ) -> None:
+        number = match or latest_match_number(current)
+        path = match_image_path(current, number)
+        if path is None or not path.exists():
+            await send_text(destination, format_results(current, number))
+            return
+        await destination.send(
+            content=match_result_caption(current, number),
+            file=discord.File(str(path), filename=match_result_filename(number)),
+        )
+
+    async def reply_match_result_sheet(
+        interaction: discord.Interaction,
+        current: EventManager | None,
+        match: int | None = None,
+    ) -> None:
+        number = match or latest_match_number(current)
+        path = match_image_path(current, number)
+        if path is None or not path.exists():
+            await reply_interaction(interaction, format_results(current, number))
+            return
+        await interaction.response.send_message(
+            content=match_result_caption(current, number),
+            file=discord.File(str(path), filename=match_result_filename(number)),
+        )
+
+    async def send_overall_standings_sheet(destination: Any, current: EventManager | None) -> None:
+        path = overall_image_path(current)
+        if path is None or not path.exists():
+            await send_text(destination, format_standings(current))
+            return
+        await destination.send(
+            content=overall_standings_caption(current),
+            file=discord.File(str(path), filename="overall_standings.png"),
+        )
+
+    async def reply_overall_standings_sheet(
+        interaction: discord.Interaction,
+        current: EventManager | None,
+    ) -> None:
+        path = overall_image_path(current)
+        if path is None or not path.exists():
+            await reply_interaction(interaction, format_standings(current))
+            return
+        await interaction.response.send_message(
+            content=overall_standings_caption(current),
+            file=discord.File(str(path), filename="overall_standings.png"),
+        )
     async def reply_interaction(interaction: discord.Interaction, text: str) -> None:
         chunks = chunk_message(text)
         await interaction.response.send_message(chunks[0])
@@ -737,11 +844,16 @@ def create_bot():
 
     @bot.command(name="results")
     async def results_cmd(ctx: commands.Context, match: int | None = None) -> None:
-        await send_text(ctx, format_results(em(), match))
+        await send_match_result_sheet(ctx, em(), match)
 
     @bot.command(name="standings")
     async def standings_cmd(ctx: commands.Context, top: int = 16) -> None:
-        await send_text(ctx, format_standings(em(), safe_int(top, 16, 1, 50)))
+        current = em()
+        chosen_top = safe_int(top, 16, 1, 50)
+        if chosen_top != 16:
+            await send_text(ctx, format_standings(current, chosen_top))
+            return
+        await send_overall_standings_sheet(ctx, current)
 
     @bot.command(name="matches")
     async def matches_cmd(ctx: commands.Context) -> None:
@@ -757,23 +869,11 @@ def create_bot():
 
     @bot.command(name="teamss", aliases=["matchss", "resultss"])
     async def teamss_cmd(ctx: commands.Context, match: int | None = None) -> None:
-        current = em()
-        number = match or latest_match_number(current)
-        await send_file(
-            ctx,
-            match_image_path(current, number),
-            f"Team SS for match {number}",
-            "Please wait, team screenshot is not available yet. Try again after the organizer posts the match result.",
-        )
+        await send_match_result_sheet(ctx, em(), match)
 
     @bot.command(name="overallss", aliases=["standingss"])
     async def overallss_cmd(ctx: commands.Context) -> None:
-        await send_file(
-            ctx,
-            overall_image_path(em()),
-            "Overall standings SS",
-            "Please wait, overall screenshot is not available yet. Try again after the organizer posts the standings.",
-        )
+        await send_overall_standings_sheet(ctx, em())
 
     @bot.command(name="playerdetails", aliases=["playerscsv", "playercsv"])
     async def playerdetails_cmd(ctx: commands.Context) -> None:
@@ -830,12 +930,17 @@ def create_bot():
     @bot.tree.command(name="results", description="Show latest or selected match results.")
     @app_commands.describe(match="Match number. Leave empty for latest.")
     async def results_slash(interaction: discord.Interaction, match: int | None = None) -> None:
-        await reply_interaction(interaction, format_results(em(), match))
+        await reply_match_result_sheet(interaction, em(), match)
 
     @bot.tree.command(name="standings", description="Show overall standings.")
     @app_commands.describe(top="How many teams to show.")
     async def standings_slash(interaction: discord.Interaction, top: int = 16) -> None:
-        await reply_interaction(interaction, format_standings(em(), safe_int(top, 16, 1, 50)))
+        current = em()
+        chosen_top = safe_int(top, 16, 1, 50)
+        if chosen_top != 16:
+            await reply_interaction(interaction, format_standings(current, chosen_top))
+            return
+        await reply_overall_standings_sheet(interaction, current)
 
     @bot.tree.command(name="matches", description="List saved matches.")
     async def matches_slash(interaction: discord.Interaction) -> None:
@@ -853,23 +958,11 @@ def create_bot():
     @bot.tree.command(name="teamss", description="Send the latest or selected match result image.")
     @app_commands.describe(match="Match number. Leave empty for latest.")
     async def teamss_slash(interaction: discord.Interaction, match: int | None = None) -> None:
-        current = em()
-        number = match or latest_match_number(current)
-        await reply_file(
-            interaction,
-            match_image_path(current, number),
-            f"Team SS for match {number}",
-            "Please wait, team screenshot is not available yet. Try again after the organizer posts the match result.",
-        )
+        await reply_match_result_sheet(interaction, em(), match)
 
     @bot.tree.command(name="overallss", description="Send the overall standings image.")
     async def overallss_slash(interaction: discord.Interaction) -> None:
-        await reply_file(
-            interaction,
-            overall_image_path(em()),
-            "Overall standings SS",
-            "Please wait, overall screenshot is not available yet. Try again after the organizer posts the standings.",
-        )
+        await reply_overall_standings_sheet(interaction, em())
 
     @bot.tree.command(name="playerdetails", description="Send full player details as CSV.")
     async def playerdetails_slash(interaction: discord.Interaction) -> None:
@@ -933,6 +1026,11 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
 
 
 

@@ -91,11 +91,11 @@
 
   .data-table thead th {
     @apply sticky top-0 z-10 whitespace-nowrap border-b border-line bg-raised px-3 py-2.5
-           text-left text-xs font-semibold uppercase tracking-wider text-bronze-bright;
+           text-center text-xs font-semibold uppercase tracking-wider text-bronze-bright;
   }
 
   .data-table tbody td {
-    @apply border-b border-line/60 px-3 py-2 align-middle;
+    @apply border-b border-line/60 px-3 py-2 text-center align-middle;
   }
 
   .data-table tbody tr:last-child td {
@@ -106,3 +106,4 @@
     @apply bg-raised/50;
   }
 }
+
