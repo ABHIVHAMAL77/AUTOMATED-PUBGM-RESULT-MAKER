@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/primitives";
 
+const BRAND_LOGO = "/ec-logo.png";
+
 type Mode = "login" | "register";
 
 export default function AuthPage() {
@@ -54,6 +56,11 @@ export default function AuthPage() {
   return (
     <div className="mx-auto grid min-h-full max-w-6xl items-center gap-10 px-4 py-10 lg:grid-cols-2 lg:gap-16">
       <div>
+        <img
+          src={BRAND_LOGO}
+          alt="ESPORTS COUNTY logo"
+          className="mb-6 size-28 object-contain drop-shadow-[0_0_28px_rgba(199,124,58,0.35)] sm:size-32"
+        />
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-bronze">
           licensed tournament tool
         </p>
@@ -163,3 +170,4 @@ export default function AuthPage() {
     </div>
   );
 }
+

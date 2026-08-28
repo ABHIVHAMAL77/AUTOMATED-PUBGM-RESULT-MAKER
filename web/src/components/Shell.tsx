@@ -16,6 +16,8 @@ const ACTIVE_EVENT_NAV = [
   { to: "/dashboard", label: "Results" },
 ];
 
+const BRAND_LOGO = "/ec-logo.png";
+
 export function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -47,9 +49,7 @@ export function Shell({ me, children }: { me: Me; children: React.ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-line bg-bg/85 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <span className="grid size-9 place-items-center rounded-lg bg-bronze font-bold text-ink">
-              EC
-            </span>
+            <img src={BRAND_LOGO} alt="ESPORTS COUNTY logo" className="size-12 object-contain drop-shadow-[0_0_14px_rgba(199,124,58,0.35)]" />
             <span className="leading-tight">
               <span className="block text-sm font-semibold tracking-wide">ESPORTS COUNTY</span>
               <span className="block text-xs text-muted">
@@ -152,5 +152,6 @@ function ThemeToggle() {
     </Button>
   );
 }
+
 
 
