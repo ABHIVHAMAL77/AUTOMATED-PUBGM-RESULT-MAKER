@@ -28,6 +28,7 @@ from .ocr_roster import (
     _as_slot_number,
     _ocr_slot_crop,
     _ocr_slot_crop_scored,
+    _run_ocr,
     ocr_image,
 )
 
@@ -110,6 +111,64 @@ def _parse_inline_player_row(text: str) -> tuple[str, int] | None:
     return name, int(digits) if digits else 0
 
 
+def _refine_name_from_crop(im, parts: list, original: str) -> str:
+    """Re-read a player-name crop when the full-frame pass looks doubtful."""
+    original = _display_name(original)
+    if not parts:
+        return original
+
+    current_score = min((float(getattr(p, "score", 0.0)) for p in parts), default=0.0)
+    if current_score >= 0.76 and len(_norm(original)) >= 3:
+        return original
+
+    pad_x = 32
+    x0 = max(0, int(min(p.x0 for p in parts) - pad_x))
+    y0 = max(0, int(min(p.y0 for p in parts) - 6))
+    x1 = min(im.width, int(max(p.x1 for p in parts) + pad_x))
+    y1 = min(im.height, int(max(p.y1 for p in parts) + 6))
+    if x1 - x0 < 8 or y1 - y0 < 8:
+        return original
+
+    crop = im.crop((x0, y0, x1, y1))
+    variants = [crop]
+    if current_score < 0.55:
+        try:
+            from PIL import ImageEnhance, ImageOps
+            gray = ImageOps.autocontrast(crop.convert("L"), cutoff=1)
+            variants.extend([
+                gray,
+                ImageEnhance.Sharpness(gray).enhance(2.4),
+            ])
+        except Exception:                              # noqa: BLE001 - raw crop still works
+            pass
+
+    candidates = []
+    for variant in variants:
+        try:
+            read = _run_ocr(variant, min_score=0.35)
+        except Exception:                              # noqa: BLE001 - never fail a screenshot for a retry
+            continue
+        if not read:
+            continue
+        read = sorted(read, key=lambda b: (b.y0, b.x0))
+        med_y = statistics.median([b.cy for b in read])
+        line = [b for b in read if abs(b.cy - med_y) <= max(8, crop.height * 0.35)]
+        text = _display_name(" ".join(b.text for b in line))
+        if not _looks_like_name(text):
+            continue
+        score = max(float(b.score) for b in line)
+        candidates.append((score, len(_norm(text)), text))
+
+    if not candidates:
+        return original
+    best_score, _, best_text = max(candidates, key=lambda item: (item[0], item[1]))
+    if best_score >= 0.82 and best_score >= current_score + 0.12:
+        return best_text
+    if best_score >= 0.94 and _name_similarity(best_text, original) < 0.55:
+        return best_text
+    return original
+
+
 def _name_variants(name: str) -> set:
     base = _norm(name)
     if not base:
@@ -175,6 +234,7 @@ def _parse_region(im, boxes, width, is_left) -> list:
         if parsed is None:
             continue
         name, kills = parsed
+        name = _refine_name_from_crop(im, [b], name)
         inline_rows.append({"name": name, "kills": kills, "cy": b.cy,
                             "y0": b.y0, "x0": b.x0})
         inline_box_ids.add(id(b))
@@ -233,11 +293,16 @@ def _parse_region(im, boxes, width, is_left) -> list:
             if nb.x1 <= eb.x0 and abs(nb.cy - eb.cy) < med_h * 0.9:
                 parts.append(nb)
         if not parts:
+            if count > 0:
+                rows.append({"name": "", "kills": max(0, count),
+                             "cy": eb.cy, "y0": eb.y0, "x0": eb.x0,
+                             "missingName": True})
             continue
         for nb in parts:
             used_names.add(id(nb))
         parts.sort(key=lambda b: b.x0)
         name = _display_name(" ".join(p.text for p in parts))
+        name = _refine_name_from_crop(im, parts, name)
         if not _looks_like_name(name):
             continue
         rows.append({"name": name, "kills": max(0, count),
@@ -259,6 +324,7 @@ def _parse_region(im, boxes, width, is_left) -> list:
             continue
         parts.sort(key=lambda b: b.x0)
         name = _display_name(" ".join(p.text for p in parts))
+        name = _refine_name_from_crop(im, parts, name)
         if not _looks_like_name(name):
             continue
         for nb in parts:
@@ -375,7 +441,9 @@ def _cards_right(im, rows, rank_boxes, pitch, med_h, width) -> list:
                 rank = n
                 break
         rank = _confirm_rank(im, rank, (x0, s0 + 1, name_x0 - 2, s1 - 1))
-        cards.append(_make_card(rank, grp))
+        card = _make_card(rank, grp)
+        card["_sortY"] = sum(r["cy"] for r in grp) / len(grp)
+        cards.append(card)
 
     # rows outside every span: cut-off cards at the very edge
     groups = []
@@ -390,12 +458,20 @@ def _cards_right(im, rows, rank_boxes, pitch, med_h, width) -> list:
     for g in groups:
         rank = _ocr_slot_crop(im, (
             x0, g[0]["cy"] - pitch, name_x0 - 2, g[-1]["cy"] + pitch))
-        cards.append(_make_card(rank, g))
+        edge_cut = g[0]["cy"] < pitch * 1.5 or g[-1]["cy"] > im.height - pitch * 1.1
+        if rank is None and len(g) <= 1 and edge_cut:
+            continue
+        card = _make_card(rank, g)
+        card["_sortY"] = sum(r["cy"] for r in g) / len(g)
+        cards.append(card)
+
+    cards = _repair_right_rank_sequence(cards)
 
     fallback = _cards_from_row_gaps(rows, rank_boxes, pitch, default_rank_start=None)
     if len(fallback) > len(cards):
         cards = _dedupe_cards(cards + fallback)
-    return cards
+        cards = _repair_right_rank_sequence(cards)
+    return _strip_internal_keys(cards)
 
 
 def _confirm_rank(im, rank, region):
@@ -419,6 +495,80 @@ def _confirm_rank(im, rank, region):
     return rank
 
 
+def _repair_right_rank_sequence(cards: list) -> list:
+    """Use right-column order to fix clipped ranks such as 11 -> 1.
+
+    The right side is a scrolling placement list. Visible cards are consecutive,
+    so a lone 1 after ranks 9 and 10 is far more likely to be 11 than another
+    first-place card.
+    """
+    if len(cards) < 2:
+        return cards
+
+    ordered = sorted(enumerate(cards), key=lambda item: item[1].get("_sortY", item[0]))
+
+    def rank_of(card):
+        try:
+            value = card.get("rank")
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    ranks = [rank_of(card) for _, card in ordered]
+    starts = {rank - idx for idx, rank in enumerate(ranks)
+              if rank is not None and 3 <= rank <= 25}
+    if not starts:
+        return cards
+
+    def score_start(start: int) -> tuple[int, int]:
+        good = 0
+        bad = 0
+        for idx, rank in enumerate(ranks):
+            expected = start + idx
+            if not 3 <= expected <= 25:
+                bad += 2
+                continue
+            if rank is None or rank <= 2:
+                continue
+            if rank == expected:
+                good += 1
+            elif expected >= 10 and expected % 10 == rank:
+                continue
+            else:
+                bad += 1
+        return good, -bad
+
+    start = max(starts, key=score_start)
+    good, negative_bad = score_start(start)
+    if good < 1 or -negative_bad > good:
+        return cards
+
+    for idx, (_, card) in enumerate(ordered):
+        expected = start + idx
+        if not 3 <= expected <= 25:
+            continue
+        rank = rank_of(card)
+        previous = ranks[idx - 1] if idx else None
+        suspect = (
+            rank is None
+            or rank <= 2
+            or (expected >= 10 and rank < 10 and expected % 10 == rank)
+            or (previous is not None and rank is not None and rank <= previous)
+        )
+        if suspect and rank != expected:
+            card["rank"] = expected
+            card["rankInferred"] = True
+    return cards
+
+
+def _strip_internal_keys(cards: list) -> list:
+    for card in cards:
+        for key in list(card):
+            if key.startswith("_"):
+                card.pop(key, None)
+    return cards
+
+
 def _dedupe_cards(cards: list) -> list:
     by_rank = {}
     unknown = []
@@ -439,10 +589,13 @@ def _dedupe_cards(cards: list) -> list:
 
 def _make_card(rank, rows) -> dict:
     rows = sorted(rows, key=lambda r: r["cy"])[:4]
-    return {
-        "rank": rank,
-        "players": [{"name": _display_name(r["name"]), "kills": r["kills"]} for r in rows],
-    }
+    players = []
+    for row in rows:
+        player = {"name": _display_name(row["name"]), "kills": row["kills"]}
+        if row.get("missingName"):
+            player["missingName"] = True
+        players.append(player)
+    return {"rank": rank, "players": players}
 
 
 def merge_result_cards(cards_lists: list) -> list:
@@ -533,6 +686,48 @@ def _team_match_score(names: list, roster: list) -> float:
     return score
 
 
+def _repair_card_players_from_roster(card: dict, roster: list) -> None:
+    """Use a matched roster to restore player spellings and missing names."""
+    players = card.get("players") or []
+    roster = [str(name) for name in roster if str(name).strip()]
+    if not players or not roster:
+        return
+
+    pairs = []
+    for pi, player in enumerate(players):
+        name = _display_name(player.get("name", ""))
+        if not name:
+            continue
+        for ri, roster_name in enumerate(roster):
+            pairs.append((_name_similarity(name, roster_name), pi, ri))
+    pairs.sort(reverse=True)
+
+    used_players = set()
+    used_roster = set()
+
+    def set_name(pi: int, roster_name: str) -> None:
+        old = players[pi].get("name", "")
+        if old != roster_name:
+            players[pi].setdefault("ocrName", old)
+            players[pi]["nameRepaired"] = True
+        players[pi]["name"] = roster_name
+        players[pi].pop("missingName", None)
+
+    for score, pi, ri in pairs:
+        if pi in used_players or ri in used_roster or score < 0.72:
+            continue
+        set_name(pi, roster[ri])
+        used_players.add(pi)
+        used_roster.add(ri)
+
+    remaining_players = [idx for idx in range(len(players)) if idx not in used_players]
+    remaining_roster = [idx for idx in range(len(roster)) if idx not in used_roster]
+    if (remaining_players and len(remaining_players) == len(remaining_roster)
+            and len(used_players) >= 2):
+        for pi, ri in zip(remaining_players, remaining_roster, strict=True):
+            set_name(pi, roster[ri])
+
+
 def match_cards_to_roster(cards: list, teams: list) -> None:
     """Fuzzy-match each card's players against the event roster and attach
     slot/teamName/matchScore in place. Each slot is used at most once."""
@@ -555,11 +750,11 @@ def match_cards_to_roster(cards: list, teams: list) -> None:
             continue
         for slot, team_name, roster in rosters:
             score = _team_match_score(names, roster)
-            scored.append((score, ci, slot, team_name))
+            scored.append((score, ci, slot, team_name, roster))
 
-    scored.sort(reverse=True)
+    scored.sort(key=lambda item: item[0], reverse=True)
     used_cards, used_slots = set(), set()
-    for score, ci, slot, team_name in scored:
+    for score, ci, slot, team_name, roster in scored:
         names_count = len([p for p in cards[ci].get("players", []) if p.get("name")])
         threshold = 0.66 if names_count <= 1 else 0.5
         if score < threshold or ci in used_cards or slot in used_slots:
@@ -567,5 +762,6 @@ def match_cards_to_roster(cards: list, teams: list) -> None:
         cards[ci]["slot"] = slot
         cards[ci]["teamName"] = team_name
         cards[ci]["matchScore"] = round(score, 2)
+        _repair_card_players_from_roster(cards[ci], roster)
         used_cards.add(ci)
         used_slots.add(slot)
