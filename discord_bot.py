@@ -27,7 +27,7 @@ from typing import Any
 
 import requests
 
-from core import result_graphic
+from core import discord_tables, result_graphic
 from core.event_manager import EventManager
 from core.match_tracker import MatchTracker
 from core.mock_data import MockDataGenerator
@@ -375,6 +375,130 @@ def player_details_csv_path(em: EventManager | None) -> Path | None:
     return path if path.exists() else None
 
 
+def discord_exports_dir(em: EventManager) -> Path:
+    path = em.exports_dir / "discord"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def match_table_filename(match_number: int | None) -> str:
+    number = safe_int(match_number, 0, 0, 99)
+    return f"match_{number:02d}_table.png" if number else "match_results_table.png"
+
+
+def discord_match_table_path(
+    em: EventManager | None,
+    match_number: int | None = None,
+    limit: int = 16,
+) -> Path | None:
+    if em is None:
+        return None
+    number = match_number or latest_match_number(em)
+    if number is None:
+        return None
+    match = em.load_match(number)
+    if not match:
+        return None
+    path = discord_exports_dir(em) / f"match_{int(number):02d}_table.png"
+    return discord_tables.render_match_results_table(
+        match,
+        path,
+        branding=em.branding(),
+        limit=safe_int(limit, 16, 1, 50),
+    )
+
+
+def discord_overall_table_path(em: EventManager | None, top: int = 16) -> Path | None:
+    if em is None:
+        return None
+    standings = em.overall_standings()
+    if not standings:
+        return None
+    chosen_top = safe_int(top, 16, 1, 50)
+    path = discord_exports_dir(em) / f"overall_top_{chosen_top:02d}_table.png"
+    return discord_tables.render_overall_table(
+        standings,
+        em.event.get("eventName", "PUBGM Event"),
+        len(em.list_match_numbers()),
+        path,
+        branding=em.branding(),
+        limit=chosen_top,
+    )
+
+
+def discord_players_table_path(em: EventManager | None, top: int = 10) -> Path | None:
+    if em is None:
+        return None
+    players = em.player_stats()
+    if not players:
+        return None
+    chosen_top = safe_int(top, 10, 1, 50)
+    path = discord_exports_dir(em) / f"top_players_{chosen_top:02d}_table.png"
+    return discord_tables.render_players_table(
+        players,
+        em.event.get("eventName", "PUBGM Event"),
+        path,
+        branding=em.branding(),
+        limit=chosen_top,
+    )
+
+
+def discord_matches_table_path(em: EventManager | None, limit: int = 10) -> Path | None:
+    if em is None:
+        return None
+    numbers = em.list_match_numbers()
+    if not numbers:
+        return None
+    chosen_limit = safe_int(limit, 10, 1, 50)
+    matches = []
+    for number in numbers[-chosen_limit:]:
+        match = em.load_match(number)
+        if match:
+            matches.append(match)
+    if not matches:
+        return None
+    path = discord_exports_dir(em) / "saved_matches_table.png"
+    return discord_tables.render_matches_table(
+        matches,
+        em.event.get("eventName", "PUBGM Event"),
+        path,
+        branding=em.branding(),
+        limit=chosen_limit,
+    )
+
+
+def discord_event_table_path(em: EventManager | None) -> Path | None:
+    if em is None:
+        return None
+    matches = em.list_match_numbers()
+    path = discord_exports_dir(em) / "event_details_table.png"
+    return discord_tables.render_event_table(
+        em.event,
+        len(matches),
+        em.next_match_number(),
+        path,
+        branding=em.branding(),
+    )
+
+
+def discord_live_table_path(
+    em: EventManager | None,
+    results: list[dict],
+    limit: int = 16,
+) -> Path | None:
+    if not results:
+        return None
+    base = discord_exports_dir(em) if em is not None else (DATA_DIR / "discord_exports")
+    base.mkdir(parents=True, exist_ok=True)
+    path = base / "live_result_check_table.png"
+    return discord_tables.render_live_results_table(
+        results,
+        path,
+        branding=em.branding() if em is not None else None,
+        limit=safe_int(limit, 16, 1, 50),
+    )
+
+
 def match_result_filename(match_number: int | None) -> str:
     number = safe_int(match_number, 0, 0, 99)
     return f"match_{number:02d}_results.png" if number else "match_results.png"
@@ -646,23 +770,23 @@ class AutoPollRunner:
         save_exports(em)
         self.last_saved_match = saved_match
         self.last_status = f"Saved match {saved_match}."
-        message = f"Saved match {saved_match} from live result feed.\n"
-        message += format_results(em, saved_match, limit=8)
+        message = f"Saved match {saved_match} from live result feed. Sending result table now."
         self.config.match_number = em.next_match_number()
 
         if channel is not None:
-            path = match_image_path(em, saved_match)
+            path = discord_match_table_path(em, saved_match)
             if path is not None and path.exists():
                 try:
                     import discord
 
                     await channel.send(
                         content=match_result_caption(em, saved_match),
-                        file=discord.File(str(path), filename=match_result_filename(saved_match)),
+                        file=discord.File(str(path), filename=match_table_filename(saved_match)),
                     )
                     return
                 except Exception as exc:  # noqa: BLE001 - fall back to text if Discord rejects the file
                     self.last_error = str(exc)
+                    message += "\n" + format_results(em, saved_match, limit=8)
             for chunk in chunk_message(message):
                 await channel.send(chunk)
 
@@ -726,6 +850,160 @@ def create_bot():
             return
         await interaction.response.send_message(content=content, file=discord.File(str(path)))
 
+    async def send_table_file(
+        destination: Any,
+        path: Path | None,
+        content: str,
+        missing: str,
+        filename: str | None = None,
+    ) -> None:
+        if path is None or not path.exists():
+            await send_text(destination, missing)
+            return
+        await destination.send(content=content, file=discord.File(str(path), filename=filename or path.name))
+
+    async def reply_table_file(
+        interaction: discord.Interaction,
+        path: Path | None,
+        content: str,
+        missing: str,
+        filename: str | None = None,
+    ) -> None:
+        if path is None or not path.exists():
+            await interaction.response.send_message(missing)
+            return
+        await interaction.response.send_message(
+            content=content,
+            file=discord.File(str(path), filename=filename or path.name),
+        )
+
+    async def send_match_result_table(
+        destination: Any,
+        current: EventManager | None,
+        match: int | None = None,
+    ) -> None:
+        number = match or latest_match_number(current)
+        await send_table_file(
+            destination,
+            discord_match_table_path(current, number),
+            match_result_caption(current, number),
+            format_results(current, number),
+            match_table_filename(number),
+        )
+
+    async def reply_match_result_table(
+        interaction: discord.Interaction,
+        current: EventManager | None,
+        match: int | None = None,
+    ) -> None:
+        number = match or latest_match_number(current)
+        await reply_table_file(
+            interaction,
+            discord_match_table_path(current, number),
+            match_result_caption(current, number),
+            format_results(current, number),
+            match_table_filename(number),
+        )
+
+    async def send_overall_standings_table(destination: Any, current: EventManager | None, top: int = 16) -> None:
+        chosen_top = safe_int(top, 16, 1, 50)
+        await send_table_file(
+            destination,
+            discord_overall_table_path(current, chosen_top),
+            overall_standings_caption(current),
+            format_standings(current, chosen_top),
+            f"overall_top_{chosen_top:02d}_table.png",
+        )
+
+    async def reply_overall_standings_table(
+        interaction: discord.Interaction,
+        current: EventManager | None,
+        top: int = 16,
+    ) -> None:
+        chosen_top = safe_int(top, 16, 1, 50)
+        await reply_table_file(
+            interaction,
+            discord_overall_table_path(current, chosen_top),
+            overall_standings_caption(current),
+            format_standings(current, chosen_top),
+            f"overall_top_{chosen_top:02d}_table.png",
+        )
+
+    async def send_players_table(destination: Any, current: EventManager | None, top: int = 10) -> None:
+        chosen_top = safe_int(top, 10, 1, 50)
+        event_name = current.event.get("eventName", "PUBGM Event") if current else "PUBGM Event"
+        await send_table_file(
+            destination,
+            discord_players_table_path(current, chosen_top),
+            f"**{event_name}**\nTop {chosen_top} Players",
+            format_players(current, chosen_top),
+            f"top_players_{chosen_top:02d}_table.png",
+        )
+
+    async def reply_players_table(
+        interaction: discord.Interaction,
+        current: EventManager | None,
+        top: int = 10,
+    ) -> None:
+        chosen_top = safe_int(top, 10, 1, 50)
+        event_name = current.event.get("eventName", "PUBGM Event") if current else "PUBGM Event"
+        await reply_table_file(
+            interaction,
+            discord_players_table_path(current, chosen_top),
+            f"**{event_name}**\nTop {chosen_top} Players",
+            format_players(current, chosen_top),
+            f"top_players_{chosen_top:02d}_table.png",
+        )
+
+    async def send_matches_table(destination: Any, current: EventManager | None) -> None:
+        event_name = current.event.get("eventName", "PUBGM Event") if current else "PUBGM Event"
+        await send_table_file(
+            destination,
+            discord_matches_table_path(current),
+            f"**{event_name}**\nSaved Matches",
+            format_matches(current),
+            "saved_matches_table.png",
+        )
+
+    async def reply_matches_table(interaction: discord.Interaction, current: EventManager | None) -> None:
+        event_name = current.event.get("eventName", "PUBGM Event") if current else "PUBGM Event"
+        await reply_table_file(
+            interaction,
+            discord_matches_table_path(current),
+            f"**{event_name}**\nSaved Matches",
+            format_matches(current),
+            "saved_matches_table.png",
+        )
+
+    async def send_event_table(destination: Any, current: EventManager | None) -> None:
+        event_name = current.event.get("eventName", "PUBGM Event") if current else "PUBGM Event"
+        await send_table_file(
+            destination,
+            discord_event_table_path(current),
+            f"**{event_name}**\nEvent Details",
+            format_event(current),
+            "event_details_table.png",
+        )
+
+    async def reply_event_table(interaction: discord.Interaction, current: EventManager | None) -> None:
+        event_name = current.event.get("eventName", "PUBGM Event") if current else "PUBGM Event"
+        await reply_table_file(
+            interaction,
+            discord_event_table_path(current),
+            f"**{event_name}**\nEvent Details",
+            format_event(current),
+            "event_details_table.png",
+        )
+
+    async def send_live_results_table(destination: Any, current: EventManager | None, results: list[dict]) -> None:
+        await send_table_file(
+            destination,
+            discord_live_table_path(current, results),
+            "Live result check complete.",
+            "Live result check complete. No live result rows were returned.",
+            "live_result_check_table.png",
+        )
+
     async def send_match_result_sheet(
         destination: Any,
         current: EventManager | None,
@@ -778,6 +1056,7 @@ def create_bot():
             content=overall_standings_caption(current),
             file=discord.File(str(path), filename="overall_standings.png"),
         )
+
     async def reply_interaction(interaction: discord.Interaction, text: str) -> None:
         chunks = chunk_message(text)
         await interaction.response.send_message(chunks[0])
@@ -844,28 +1123,25 @@ def create_bot():
 
     @bot.command(name="results")
     async def results_cmd(ctx: commands.Context, match: int | None = None) -> None:
-        await send_match_result_sheet(ctx, em(), match)
+        await send_match_result_table(ctx, em(), match)
 
     @bot.command(name="standings")
     async def standings_cmd(ctx: commands.Context, top: int = 16) -> None:
         current = em()
         chosen_top = safe_int(top, 16, 1, 50)
-        if chosen_top != 16:
-            await send_text(ctx, format_standings(current, chosen_top))
-            return
-        await send_overall_standings_sheet(ctx, current)
+        await send_overall_standings_table(ctx, current, chosen_top)
 
     @bot.command(name="matches")
     async def matches_cmd(ctx: commands.Context) -> None:
-        await send_text(ctx, format_matches(em()))
+        await send_matches_table(ctx, em())
 
     @bot.command(name="players")
     async def players_cmd(ctx: commands.Context, top: int = 10) -> None:
-        await send_text(ctx, format_players(em(), safe_int(top, 10, 1, 50)))
+        await send_players_table(ctx, em(), safe_int(top, 10, 1, 50))
 
     @bot.command(name="event")
     async def event_cmd(ctx: commands.Context) -> None:
-        await send_text(ctx, format_event(em()))
+        await send_event_table(ctx, em())
 
     @bot.command(name="teamss", aliases=["matchss", "resultss"])
     async def teamss_cmd(ctx: commands.Context, match: int | None = None) -> None:
@@ -925,35 +1201,32 @@ def create_bot():
         else:
             runner.config.api_url = config.api_url
         await runner.poll_once()
-        await send_text(ctx, "Live result check complete.\n" + format_live_results(runner.last_results))
+        await send_live_results_table(ctx, em(), runner.last_results)
 
     @bot.tree.command(name="results", description="Show latest or selected match results.")
     @app_commands.describe(match="Match number. Leave empty for latest.")
     async def results_slash(interaction: discord.Interaction, match: int | None = None) -> None:
-        await reply_match_result_sheet(interaction, em(), match)
+        await reply_match_result_table(interaction, em(), match)
 
     @bot.tree.command(name="standings", description="Show overall standings.")
     @app_commands.describe(top="How many teams to show.")
     async def standings_slash(interaction: discord.Interaction, top: int = 16) -> None:
         current = em()
         chosen_top = safe_int(top, 16, 1, 50)
-        if chosen_top != 16:
-            await reply_interaction(interaction, format_standings(current, chosen_top))
-            return
-        await reply_overall_standings_sheet(interaction, current)
+        await reply_overall_standings_table(interaction, current, chosen_top)
 
     @bot.tree.command(name="matches", description="List saved matches.")
     async def matches_slash(interaction: discord.Interaction) -> None:
-        await reply_interaction(interaction, format_matches(em()))
+        await reply_matches_table(interaction, em())
 
     @bot.tree.command(name="players", description="Show top players.")
     @app_commands.describe(top="How many players to show.")
     async def players_slash(interaction: discord.Interaction, top: int = 10) -> None:
-        await reply_interaction(interaction, format_players(em(), safe_int(top, 10, 1, 50)))
+        await reply_players_table(interaction, em(), safe_int(top, 10, 1, 50))
 
     @bot.tree.command(name="event", description="Show current event info.")
     async def event_slash(interaction: discord.Interaction) -> None:
-        await reply_interaction(interaction, format_event(em()))
+        await reply_event_table(interaction, em())
 
     @bot.tree.command(name="teamss", description="Send the latest or selected match result image.")
     @app_commands.describe(match="Match number. Leave empty for latest.")
@@ -1026,20 +1299,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
