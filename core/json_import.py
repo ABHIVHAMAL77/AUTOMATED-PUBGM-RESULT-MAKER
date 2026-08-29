@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from core.models import parse_snapshot
 from core.scoring import build_team_result, placement_points
 
@@ -14,6 +16,7 @@ PLAYER_LIST_KEYS = (
     "players", "Players",
 )
 TEAM_LIST_KEYS = ("TeamInfoList", "teamInfoList", "TeamList", "teamList")
+GENERIC_TEAM_NAME_RE = re.compile(r"^\s*(?:team|slot|camp)\s*#?\s*\d+\s*$", re.IGNORECASE)
 
 
 def import_match_json(data, point_system: dict, name_overrides: dict | None = None) -> dict:
@@ -111,10 +114,25 @@ def _results_from_observer(payload: dict, point_system: dict, name_overrides: di
 
     ordered = sorted(states.values(), key=lambda state: (state.api_rank or 999, -state.kills))
     return [
-        build_team_result(state, state.api_rank or placement, point_system, name_overrides.get(state.teamId, ""))
+        build_team_result(
+            state,
+            state.api_rank or placement,
+            point_system,
+            _observer_display_name(state, name_overrides),
+        )
         for placement, state in enumerate(ordered, start=1)
     ]
 
+def _observer_display_name(state, name_overrides: dict) -> str:
+    feed_name = str(state.teamName or "").strip()
+    override = str(name_overrides.get(state.teamId, "") or "").strip()
+    if feed_name and not _is_generic_team_name(feed_name):
+        return feed_name
+    return override or feed_name
+
+
+def _is_generic_team_name(name: str) -> bool:
+    return bool(GENERIC_TEAM_NAME_RE.match(str(name or "")))
 
 def _normalise_result(item: dict, point_system: dict) -> dict:
     rank = _int(_get(item, "placement", "rank", "place", "teamRank"))

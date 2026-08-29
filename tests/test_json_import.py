@@ -66,6 +66,26 @@ def test_import_observer_json_with_final_ranks():
     assert imported["rows"][0]["rank"] == 1
     assert imported["rows"][0]["players"][0] == {"name": "B", "kills": 4}
 
+def test_import_observer_json_keeps_real_feed_team_name_over_roster_override():
+    imported = import_match_json({
+        "playerInfoList": [
+            {"uId": "a", "playerName": "A", "teamId": 11, "teamName": "PAKISTAN", "rank": 1, "killNum": 5},
+        ]
+    }, POINTS, {11: "DRS GAMING"})
+
+    row = imported["rows"][0]
+    assert row["slot"] == 11
+    assert row["teamName"] == "PAKISTAN"
+
+
+def test_import_observer_json_uses_roster_override_for_generic_feed_name():
+    imported = import_match_json({
+        "playerInfoList": [
+            {"uId": "a", "playerName": "A", "teamId": 11, "teamName": "Team11", "rank": 1, "killNum": 5},
+        ]
+    }, POINTS, {11: "DRS GAMING"})
+
+    assert imported["rows"][0]["teamName"] == "DRS GAMING"
 
 def test_import_live_observer_json_without_ranks_explains_the_problem():
     with pytest.raises(ValueError, match="no final placement ranks"):
