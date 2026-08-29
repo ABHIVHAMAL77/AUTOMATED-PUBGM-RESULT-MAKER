@@ -3,10 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 import { api } from "@/lib/api";
-import type { EventAccess, EventsResponse } from "@/lib/types";
+import type { EventAccess, EventSummary, EventsResponse } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/components/Toasts";
-import { Badge, Button, EmptyState, Panel, Skeleton } from "@/components/ui/primitives";
+import { Badge, Button, ConfirmDialog, EmptyState, Panel, Skeleton } from "@/components/ui/primitives";
 
 export default function EventsPage() {
   const navigate = useNavigate();
@@ -18,6 +18,7 @@ export default function EventsPage() {
     totalMatches: 6,
   });
   const [shareEmail, setShareEmail] = React.useState("");
+  const [deleteTarget, setDeleteTarget] = React.useState<EventSummary | null>(null);
 
   const { data, isPending } = useQuery<EventsResponse>({
     queryKey: ["events"],
@@ -63,6 +64,19 @@ export default function EventsPage() {
   const select = useMutation({
     mutationFn: (eventId: string) => api.selectEvent(eventId),
     onSuccess: (updated) => finishSelection(updated, "Event selected."),
+    onError: (error: Error) => push(error.message, "error"),
+  });
+
+  const deleteEvent = useMutation({
+    mutationFn: (event: EventSummary) => api.deleteEvent(event.id),
+    onSuccess: (updated) => {
+      setDeleteTarget(null);
+      queryClient.setQueryData(["events"], updated);
+      queryClient.invalidateQueries({ queryKey: ["event-access"] });
+      queryClient.invalidateQueries({ queryKey: ["event"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      push("Event deleted.", "success");
+    },
     onError: (error: Error) => push(error.message, "error"),
   });
 
@@ -130,14 +144,33 @@ export default function EventsPage() {
                     {event.sharedCount} shared email{event.sharedCount === 1 ? "" : "s"}
                   </p>
                   <p className="mt-3 text-xs text-muted">Updated {formatDate(event.updatedAt)}</p>
-                  <Button
-                    className="mt-4 w-full"
-                    variant={event.active ? "primary" : "secondary"}
-                    loading={select.isPending && select.variables === event.id}
-                    onClick={() => select.mutate(event.id)}
+                  <div
+                    className={
+                      event.accessRole === "owner"
+                        ? "mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
+                        : "mt-4"
+                    }
                   >
-                    {event.active ? "Continue" : "Select event"}
-                  </Button>
+                    <Button
+                      className="w-full"
+                      variant={event.active ? "primary" : "secondary"}
+                      loading={select.isPending && select.variables === event.id}
+                      disabled={deleteEvent.isPending}
+                      onClick={() => select.mutate(event.id)}
+                    >
+                      {event.active ? "Continue" : "Select event"}
+                    </Button>
+                    {event.accessRole === "owner" && (
+                      <Button
+                        variant="danger"
+                        loading={deleteEvent.isPending && deleteEvent.variables?.id === event.id}
+                        disabled={select.isPending}
+                        onClick={() => setDeleteTarget(event)}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </div>
                 </article>
               ))}
             </div>
@@ -255,6 +288,26 @@ export default function EventsPage() {
           </div>
         </Panel>
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && !deleteEvent.isPending) setDeleteTarget(null);
+        }}
+        title="Delete event?"
+        body={
+          <span>
+            Delete <strong>{deleteTarget?.eventName || "this event"}</strong> and all saved matches,
+            exports, graphics, and shared access. This cannot be undone.
+          </span>
+        }
+        confirmLabel="Delete event"
+        destructive
+        pending={deleteEvent.isPending}
+        onConfirm={() => {
+          if (deleteTarget) deleteEvent.mutate(deleteTarget);
+        }}
+      />
     </div>
   );
 }

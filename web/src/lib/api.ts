@@ -68,6 +68,8 @@ export const api = {
   createEvent: (payload: { eventName: string; stage?: string; totalMatches?: number }) =>
     post<EventsResponse>("/api/events", payload),
   selectEvent: (eventId: string) => post<EventsResponse>("/api/events/select", { eventId }),
+  deleteEvent: (eventId: string) =>
+    request<EventsResponse>(`/api/events/${encodeURIComponent(eventId)}`, { method: "DELETE" }),
   eventAccess: () => request<EventAccess>("/api/events/access"),
   addEventAccess: (email: string) => post<EventAccess>("/api/events/access", { email }),
   removeEventAccess: (email: string) =>
@@ -188,5 +190,6 @@ export async function downloadExport(kind: "sheet" | "overall-png" | "match-png"
   link.remove();
   URL.revokeObjectURL(url);
 }
+
 
 

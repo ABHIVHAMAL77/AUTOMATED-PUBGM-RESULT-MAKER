@@ -610,6 +610,57 @@ def owner_event_ref_or_403(email: str) -> dict:
         raise HTTPException(status_code=403, detail="Only the event owner can manage access.")
     return ref
 
+def _assert_child_path(child: Path, parent: Path) -> None:
+    try:
+        child.resolve().relative_to(parent.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid event folder.") from exc
+
+
+def _active_ref_matches(email: str, owner_email: str, event_id: str) -> bool:
+    data = load_json(active_event_file(email), {})
+    if isinstance(data, dict):
+        stored_owner = normalize_email(str(data.get("ownerEmail") or email))
+        stored_event = str(data.get("eventId") or data.get("eventRef") or "")
+        return stored_owner == normalize_email(owner_email) and stored_event == event_id
+    if isinstance(data, str):
+        return normalize_email(email) == normalize_email(owner_email) and data == event_id
+    return False
+
+
+def delete_event_workspace(email: str, requested_id: str) -> None:
+    owner = normalize_email(email)
+    ref = event_ref_by_id(owner, requested_id)
+    if not ref:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    if ref["ownerEmail"] != owner or ref["role"] != "owner":
+        raise HTTPException(status_code=403, detail="Only the event owner can delete this event.")
+
+    event_id = ref["eventId"]
+    user_root = user_data_root(owner)
+    if event_id == LEGACY_EVENT_ID:
+        root = user_root.resolve()
+        for filename in ("event.json", EVENT_ACCESS_FILE_NAME):
+            target = (root / filename).resolve()
+            if target.parent == root:
+                target.unlink(missing_ok=True)
+        for dirname in ("results", "exports", "branding"):
+            target = (root / dirname).resolve()
+            _assert_child_path(target, root)
+            if target.exists() and target.is_dir():
+                shutil.rmtree(target)
+    else:
+        events_root = (user_root / EVENTS_DIR_NAME).resolve()
+        target = Path(ref["dataDir"]).resolve()
+        _assert_child_path(target, events_root)
+        if target == events_root or not target.exists() or not target.is_dir():
+            raise HTTPException(status_code=404, detail="Event not found.")
+        shutil.rmtree(target)
+
+    if _active_ref_matches(owner, owner, event_id):
+        active_event_file(owner).unlink(missing_ok=True)
+    api_states.pop(f"{user_slug(owner)}:{event_id}", None)
+
 def public_event(em: EventManager) -> dict:
     event = dict(em.event)
     ps = event.get("pointSystem", DEFAULT_POINT_SYSTEM)
@@ -867,6 +918,11 @@ def select_event(payload: EventSelectPayload, email: Annotated[str, Depends(requ
     write_active_event_id(email, payload.eventId)
     return events_payload(email)
 
+
+@app.delete("/api/events/{event_id}")
+def delete_event(event_id: str, email: Annotated[str, Depends(require_user)]):
+    delete_event_workspace(email, event_id)
+    return events_payload(email)
 
 @app.get("/api/events/access")
 def get_event_access(email: Annotated[str, Depends(require_user)]):
@@ -1338,5 +1394,6 @@ def spa_fallback(_: str, request: Request):
     if request.url.path.startswith("/api/"):
         raise HTTPException(status_code=404, detail="Not found.")
     return spa_shell()
+
 
 
