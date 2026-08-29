@@ -725,6 +725,7 @@ class AutoPollRunner:
         self.last_results = self.tracker.build_results(
             em.event.get("pointSystem", DEFAULT_POINT_SYSTEM),
             em.team_name_overrides(),
+            em.event.get("teams", []),
         )
         self.last_status = (
             f"{source}: {self.tracker.alive_team_count} team(s) alive, "
@@ -1299,4 +1300,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

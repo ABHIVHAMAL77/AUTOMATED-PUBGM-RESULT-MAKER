@@ -787,6 +787,7 @@ def observer_results_from_snapshot(state: dict, email: str, snap, status: str) -
     results = tracker.build_results(
         em.event.get("pointSystem", DEFAULT_POINT_SYSTEM),
         em.team_name_overrides(),
+        em.event.get("teams", []),
     )
     state["lastResults"] = results
     state["lastStatus"] = status
@@ -1043,6 +1044,7 @@ async def import_json_results(
             data,
             em.event.get("pointSystem", DEFAULT_POINT_SYSTEM),
             em.team_name_overrides(),
+            em.event.get("teams", []),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1395,6 +1397,3 @@ def spa_fallback(_: str, request: Request):
     if request.url.path.startswith("/api/"):
         raise HTTPException(status_code=404, detail="Not found.")
     return spa_shell()
-
-
-

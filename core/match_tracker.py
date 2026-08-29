@@ -9,6 +9,7 @@ Placement logic:
   reverse elimination order (last team to die = best placement among dead).
 """
 
+from .ocr_results import match_cards_to_roster
 from .scoring import build_team_result
 
 
@@ -17,8 +18,8 @@ class MatchTracker:
         self.reset()
 
     def reset(self):
-        self.elimination_order = []   # teamIds, first eliminated first
-        self.latest_states = {}       # teamId -> TeamState (last known)
+        self.elimination_order = []  # teamIds, first eliminated first
+        self.latest_states = {}  # teamId -> TeamState (last known)
         self.seen_any_data = False
 
     def update(self, team_states: dict):
@@ -44,7 +45,12 @@ class MatchTracker:
     def is_match_over(self) -> bool:
         return self.seen_any_data and len(self.latest_states) > 1 and self.alive_team_count <= 1
 
-    def build_results(self, point_system: dict, name_overrides: dict = None) -> list:
+    def build_results(
+        self,
+        point_system: dict,
+        name_overrides: dict = None,
+        teams: list | None = None,
+    ) -> list:
         """Return final per-team result dicts sorted by placement."""
         name_overrides = name_overrides or {}
         alive = [st for st in self.latest_states.values() if st.alive_count > 0]
@@ -57,8 +63,50 @@ class MatchTracker:
         seen = {st.teamId for st in ordered}
         ordered += [st for st in self.latest_states.values() if st.teamId not in seen]
 
+        roster_matches = _match_states_to_roster(ordered, teams or [])
         results = []
         for placement, st in enumerate(ordered, start=1):
             display = name_overrides.get(st.teamId, "")
-            results.append(build_team_result(st, placement, point_system, display))
+            result = build_team_result(st, placement, point_system, display)
+            matched = roster_matches.get(st.teamId)
+            if matched:
+                result["teamId"] = int(matched["slot"])
+                result["teamName"] = str(matched["teamName"])
+                result["matchScore"] = matched.get("matchScore", 0)
+                _apply_matched_player_names(result, matched.get("players") or [])
+            results.append(result)
         return results
+
+
+def _match_states_to_roster(states: list, teams: list) -> dict:
+    if not any(team.get("players") for team in teams if isinstance(team, dict)):
+        return {}
+
+    cards = []
+    for index, state in enumerate(states, start=1):
+        cards.append(
+            {
+                "rank": index,
+                "players": [
+                    {"name": player.playerName, "kills": player.killNum}
+                    for player in state.players
+                    if player.playerName
+                ],
+            }
+        )
+    match_cards_to_roster(cards, teams)
+    return {
+        state.teamId: card
+        for state, card in zip(states, cards, strict=True)
+        if card.get("slot") and card.get("teamName")
+    }
+
+
+def _apply_matched_player_names(result: dict, matched_players: list) -> None:
+    saved_players = result.get("players") or []
+    if len(saved_players) != len(matched_players):
+        return
+    for saved, matched in zip(saved_players, matched_players, strict=True):
+        name = str(matched.get("name") or "").strip()
+        if name:
+            saved["playerName"] = name

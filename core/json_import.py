@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from core.models import parse_snapshot
+from core.ocr_results import match_cards_to_roster
 from core.scoring import build_team_result, placement_points
 
 RESULT_KEYS = ("results", "Results", "matchResults", "MatchResults")
@@ -20,11 +21,16 @@ PLAYER_LIST_KEYS = (
 TEAM_LIST_KEYS = ("TeamInfoList", "teamInfoList", "TeamList", "teamList")
 
 
-def import_match_json(data, point_system: dict, name_overrides: dict | None = None) -> dict:
+def import_match_json(
+    data,
+    point_system: dict,
+    name_overrides: dict | None = None,
+    teams: list | None = None,
+) -> dict:
     """Return review rows parsed from a saved result or observer JSON file."""
     name_overrides = name_overrides or {}
     payload = _payload(data)
-    results, source = _extract_results(payload, point_system, name_overrides)
+    results, source = _extract_results(payload, point_system, name_overrides, teams or [])
     if not results:
         raise ValueError(
             "No match result rows were found in this JSON. Upload a saved match JSON, "
@@ -74,7 +80,12 @@ def result_from_manual_payload(entry, point_system: dict) -> dict:
     return result
 
 
-def _extract_results(payload, point_system: dict, name_overrides: dict) -> tuple[list, str]:
+def _extract_results(
+    payload,
+    point_system: dict,
+    name_overrides: dict,
+    teams: list,
+) -> tuple[list, str]:
     if isinstance(payload, list):
         return [
             _normalise_result(item, point_system, name_overrides)
@@ -103,12 +114,17 @@ def _extract_results(payload, point_system: dict, name_overrides: dict) -> tuple
             ], "teams"
 
     if _has_any_list(payload, PLAYER_LIST_KEYS) or _has_any_list(payload, TEAM_LIST_KEYS):
-        return _results_from_observer(payload, point_system, name_overrides), "observer"
+        return _results_from_observer(payload, point_system, name_overrides, teams), "observer"
 
     return [], "unknown"
 
 
-def _results_from_observer(payload: dict, point_system: dict, name_overrides: dict) -> list:
+def _results_from_observer(
+    payload: dict,
+    point_system: dict,
+    name_overrides: dict,
+    teams: list,
+) -> list:
     snap = parse_snapshot(payload)
     states = snap.team_states()
     if not states:
@@ -128,15 +144,61 @@ def _results_from_observer(payload: dict, point_system: dict, name_overrides: di
         )
 
     ordered = sorted(states.values(), key=lambda state: (state.api_rank or 999, -state.kills))
-    return [
-        build_team_result(
+    roster_matches = _match_observer_states_to_roster(ordered, teams)
+    results = []
+    for placement, state in enumerate(ordered, start=1):
+        result = build_team_result(
             state,
             state.api_rank or placement,
             point_system,
             name_overrides.get(state.teamId, ""),
         )
-        for placement, state in enumerate(ordered, start=1)
-    ]
+        matched = roster_matches.get(state.teamId)
+        if matched:
+            result["teamId"] = int(matched["slot"])
+            result["teamName"] = str(matched["teamName"])
+            result["matchScore"] = matched.get("matchScore", 0)
+            _apply_matched_player_names(result, matched.get("players") or [])
+        results.append(result)
+    return results
+
+
+def _match_observer_states_to_roster(states: list, teams: list) -> dict:
+    if not _has_roster_players(teams):
+        return {}
+
+    cards = []
+    for index, state in enumerate(states, start=1):
+        cards.append(
+            {
+                "rank": state.api_rank or index,
+                "players": [
+                    {"name": player.playerName, "kills": player.killNum}
+                    for player in state.players
+                    if player.playerName
+                ],
+            }
+        )
+    match_cards_to_roster(cards, teams)
+    return {
+        state.teamId: card
+        for state, card in zip(states, cards, strict=True)
+        if card.get("slot") and card.get("teamName")
+    }
+
+
+def _has_roster_players(teams: list) -> bool:
+    return any(team.get("players") for team in teams if isinstance(team, dict))
+
+
+def _apply_matched_player_names(result: dict, matched_players: list) -> None:
+    saved_players = result.get("players") or []
+    if len(saved_players) != len(matched_players):
+        return
+    for saved, matched in zip(saved_players, matched_players, strict=True):
+        name = str(matched.get("name") or "").strip()
+        if name:
+            saved["playerName"] = name
 
 
 def _normalise_result(item: dict, point_system: dict, name_overrides: dict | None = None) -> dict:

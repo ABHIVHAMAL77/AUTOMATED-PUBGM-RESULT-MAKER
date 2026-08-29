@@ -152,6 +152,44 @@ def test_import_saved_result_json_uses_slot_list_name_when_available():
     assert imported["rows"][0]["teamName"] == "DRS GAMING"
 
 
+def test_import_observer_json_matches_saved_roster_players_before_feed_slot():
+    imported = import_match_json(
+        {
+            "playerInfoList": [
+                {
+                    "uId": "sdmz1",
+                    "playerName": "SdmzNAAIM",
+                    "teamId": 16,
+                    "teamName": "JORDAN",
+                    "rank": 2,
+                    "killNum": 1,
+                },
+                {
+                    "uId": "sdmz2",
+                    "playerName": "SdmzAMAAN24",
+                    "teamId": 16,
+                    "teamName": "JORDAN",
+                    "rank": 2,
+                    "killNum": 1,
+                },
+            ]
+        },
+        POINTS,
+        {7: "LNN SDMZ", 16: "1HITxUF"},
+        [
+            {"teamId": 7, "teamName": "LNN SDMZ", "players": ["SdmzNAAIM", "SdmzAMAAN24"]},
+            {"teamId": 16, "teamName": "1HITxUF", "players": ["1HITxScoutUF", "1HITxAdiosUF"]},
+        ],
+    )
+
+    row = imported["rows"][0]
+    assert row["rank"] == 2
+    assert row["slot"] == 7
+    assert row["teamName"] == "LNN SDMZ"
+    assert row["rawResult"]["placementPoints"] == 6
+    assert row["rawResult"]["totalPoints"] == 8
+
+
 def test_import_live_observer_json_without_ranks_explains_the_problem():
     with pytest.raises(ValueError, match="no final placement ranks"):
         import_match_json(
