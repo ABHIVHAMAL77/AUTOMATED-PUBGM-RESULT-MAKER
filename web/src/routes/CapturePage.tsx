@@ -55,6 +55,8 @@ export default function CapturePage() {
   // in the panel above it.
   const [rosterShots, setRosterShots] = React.useState<Shot[]>([]);
   const [resultShots, setResultShots] = React.useState<Shot[]>([]);
+  const [jsonFile, setJsonFile] = React.useState<File | null>(null);
+  const jsonInputRef = React.useRef<HTMLInputElement>(null);
   const [rows, setRows] = React.useState<MatchRow[]>([]);
   const [matchNumber, setMatchNumber] = React.useState<number | null>(null);
   const [map, setMap] = React.useState("Erangel");
@@ -111,11 +113,39 @@ export default function CapturePage() {
           confidenceReasons: row.confidenceReasons,
           needsReview: row.needsReview,
           source: row.source,
+          rawResult: row.rawResult,
         })),
       );
       setProblems(data.problems);
       setRestored(false);
       push(`Read ${data.rows.length} team(s) with the ${data.engineUsed} engine.`, "success");
+    },
+    onError: (error: Error) => push(error.message, "error"),
+  });
+
+  const importJson = useMutation({
+    mutationFn: (file: File) => api.importMatchJson(file),
+    onSuccess: (data) => {
+      setRows(
+        data.rows.map((row) => ({
+          rank: row.rank,
+          slot: row.slot,
+          teamName: row.teamName,
+          players: padPlayers(row.players),
+          confidence: row.confidence,
+          confidenceReasons: row.confidenceReasons,
+          needsReview: row.needsReview,
+          source: row.source,
+          rawResult: row.rawResult,
+        })),
+      );
+      setProblems(data.problems);
+      if (data.matchNumber) setMatchNumber(data.matchNumber);
+      if (data.map && MAPS.includes(data.map)) setMap(data.map);
+      setResultShots([]);
+      setJsonFile(null);
+      setRestored(false);
+      push(`Imported ${data.rows.length} team(s) from JSON. Review once, then save.`, "success");
     },
     onError: (error: Error) => push(error.message, "error"),
   });
@@ -128,6 +158,7 @@ export default function CapturePage() {
       setRows([]);
       setProblems([]);
       setResultShots([]);
+      setJsonFile(null);
       setMatchNumber(data.nextMatch);
       push(`Match ${effectiveMatch} saved. Sheet and graphics updated.`, "success");
     },
@@ -143,7 +174,7 @@ export default function CapturePage() {
     );
   }
 
-  const busy = readRoster.isPending || readResults.isPending;
+  const busy = readRoster.isPending || readResults.isPending || importJson.isPending;
   const blocked = issues.byRow.size > 0 || rows.length === 0;
   const activeShot = resultShots[0];
   const rosterCount = dashboard.event.teams?.length ?? 0;
@@ -229,9 +260,63 @@ export default function CapturePage() {
           label="Drop match result screenshots here"
           hint="The gold ranking cards, plus the #1 and #2 panel on the left. PNG, JPG, WEBP or BMP. Reading takes about 10–20 seconds per batch."
         />
+
+        <div className="mt-4 rounded-panel border border-line bg-raised/40 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-sand">Already have a match JSON?</p>
+              <p className="mt-1 text-xs text-muted">
+                Upload a saved match file or final observer JSON to fill this same review table.
+              </p>
+              {jsonFile && (
+                <p className="mt-2 truncate text-xs text-bronze-bright" title={jsonFile.name}>
+                  {jsonFile.name}
+                </p>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => jsonInputRef.current?.click()}
+            >
+              Choose JSON
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              loading={importJson.isPending}
+              disabled={!jsonFile || busy}
+              onClick={() => jsonFile && importJson.mutate(jsonFile)}
+            >
+              Import JSON
+            </Button>
+            {jsonFile && (
+              <Button type="button" variant="ghost" disabled={busy} onClick={() => setJsonFile(null)}>
+                Clear
+              </Button>
+            )}
+            <input
+              ref={jsonInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="sr-only"
+              onChange={(event) => {
+                setJsonFile(event.target.files?.[0] ?? null);
+                event.target.value = "";
+              }}
+            />
+          </div>
+        </div>
+
         {readResults.isPending && (
           <p className="mt-4 text-sm text-muted" role="status">
             Reading {resultShots.length} result screenshot(s)…
+          </p>
+        )}
+        {importJson.isPending && (
+          <p className="mt-4 text-sm text-muted" role="status">
+            Importing match JSON…
           </p>
         )}
       </Panel>
@@ -294,8 +379,8 @@ export default function CapturePage() {
 
         {rows.length === 0 ? (
           <EmptyState title="Nothing to review yet">
-            Upload result screenshots above and press <strong>Read results</strong>, or start a
-            match by hand.
+            Upload result screenshots above and press <strong>Read results</strong>, import a JSON
+            file, or start a match by hand.
             <span className="mt-4 block">
               <Button onClick={() => setRows(seedRows(dashboard))}>Enter results manually</Button>
             </span>

@@ -80,6 +80,7 @@ export interface ResultRow {
   needsReview: boolean;
   source: string;
   sourceOrder: number;
+  rawResult?: Record<string, unknown>;
 }
 
 export interface OcrResultsResponse {
@@ -89,6 +90,12 @@ export interface OcrResultsResponse {
   problems: string[];
   engineUsed: string;
   escalatedCards: number;
+}
+
+export interface JsonImportResponse extends OcrResultsResponse {
+  source: string;
+  matchNumber?: number;
+  map?: string;
 }
 
 export interface RosterCard {
@@ -157,6 +164,7 @@ export interface MatchRow {
   needsReview?: boolean;
   saveProblem?: string;
   source?: string;
+  rawResult?: Record<string, unknown>;
 }
 
 /** One team in a built match result — the observer feed and saved matches

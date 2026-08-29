@@ -7,6 +7,7 @@ import type {
   EventsResponse,
   GraphicsCatalogue,
   GraphicsConfig,
+  JsonImportResponse,
   MatchRow,
   Me,
   OcrResultsResponse,
@@ -81,6 +82,11 @@ export const api = {
 
   ocrRoster: (files: File[]) => upload<OcrRosterResponse>("/api/manual/ocr-roster", files),
   ocrResults: (files: File[]) => upload<OcrResultsResponse>("/api/manual/ocr-results", files),
+  importMatchJson: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<JsonImportResponse>("/api/manual/import-json", { method: "POST", body: form });
+  },
 
   saveMatch: (matchNumber: number, map: string, rows: MatchRow[]) =>
     post<Dashboard>("/api/manual/match", {
@@ -94,6 +100,7 @@ export const api = {
         players: row.players
           .filter((p) => p.name.trim())
           .map((p) => ({ name: p.name, kills: Number(p.kills || 0) })),
+        rawResult: row.rawResult,
       })),
     }),
 

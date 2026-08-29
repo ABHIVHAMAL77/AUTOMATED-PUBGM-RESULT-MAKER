@@ -30,12 +30,13 @@ from pydantic import BaseModel, Field
 
 from core import graphic_themes, result_graphic
 from core.event_manager import EventManager
+from core.json_import import import_match_json, result_from_manual_payload
 from core.match_tracker import MatchTracker
 from core.mock_data import MockDataGenerator
 from core.models import parse_snapshot
 from core.ocr_pipeline import engine_status, run_results_ocr, run_roster_ocr
 from core.ocr_roster import warm_up as warm_up_ocr
-from core.scoring import DEFAULT_POINT_SYSTEM, placement_points
+from core.scoring import DEFAULT_POINT_SYSTEM
 from core.sheet_export import export_tournament_sheet
 
 APP_DIR = Path(__file__).resolve().parent
@@ -60,6 +61,7 @@ DATA_DIR = Path(os.environ.get("EC_DATA_DIR") or (APP_DIR / "data"))
 WEB_DIR = APP_DIR / "web"
 WEB_DATA_DIR = DATA_DIR / "web"
 WEB_UPLOAD_DIR = DATA_DIR / "web_uploads"
+JSON_IMPORT_MAX_BYTES = 5 * 1024 * 1024
 ALLOWLIST_FILE = DATA_DIR / "web_allowlist.json"
 USERS_FILE = DATA_DIR / "web_users.json"
 SECRET_FILE = DATA_DIR / "web_secret.key"
@@ -140,6 +142,7 @@ class ManualTeamPayload(BaseModel):
     teamName: str
     kills: int = Field(default=0, ge=0, le=999)
     players: list[PlayerPayload] = Field(default_factory=list)
+    rawResult: dict | None = None
 
 
 class ManualMatchPayload(BaseModel):
@@ -731,40 +734,7 @@ def team_short_name(name: str) -> str:
 
 
 def manual_result(entry: ManualTeamPayload, point_system: dict) -> dict:
-    pp = placement_points(entry.rank, point_system)
-    kp = entry.kills * int(point_system.get("killPoint", 1))
-    players = []
-    if entry.players:
-        for player in entry.players:
-            if not player.name.strip():
-                continue
-            players.append({
-                "playerName": player.name.strip(),
-                "uId": "",
-                "kills": player.kills,
-                "damage": 0,
-                "knockouts": 0,
-                "headshots": 0,
-                "assists": 0,
-                "damageReceived": 0,
-                "survivalTime": 0,
-                "heal": 0,
-                "rescues": 0,
-                "longestKill": 0,
-                "grenadeKills": 0,
-                "raw": {},
-            })
-    return {
-        "teamId": entry.slot,
-        "teamName": entry.teamName.strip() or f"Team {entry.slot}",
-        "placement": entry.rank,
-        "kills": entry.kills,
-        "placementPoints": pp,
-        "killPoints": kp,
-        "totalPoints": pp + kp,
-        "wwcd": entry.rank == 1,
-        "players": players,
-    }
+    return result_from_manual_payload(entry, point_system)
 
 
 def duplicate_values(values: list[int]) -> list[int]:
@@ -1045,6 +1015,37 @@ async def ocr_results(
     paths = await save_uploads(email, files)
     em = manager_for(email)
     return run_results_ocr(paths, em.event.get("teams", []))
+
+
+@app.post("/api/manual/import-json")
+async def import_json_results(
+    file: Annotated[UploadFile, File()],
+    email: Annotated[str, Depends(require_user)],
+):
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix != ".json":
+        raise HTTPException(status_code=400, detail="Upload a .json match file.")
+
+    raw = await file.read(JSON_IMPORT_MAX_BYTES + 1)
+    if len(raw) > JSON_IMPORT_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="JSON file is too large. Keep it under 5 MB.")
+
+    try:
+        data = json.loads(raw.decode("utf-8-sig"))
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="JSON file must be UTF-8 text.") from exc
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc.msg}.") from exc
+
+    em = manager_for(email)
+    try:
+        return import_match_json(
+            data,
+            em.event.get("pointSystem", DEFAULT_POINT_SYSTEM),
+            em.team_name_overrides(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/manual/match")
